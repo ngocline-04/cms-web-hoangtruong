@@ -46,6 +46,10 @@ function LayoutSaving() {
         key: "/cart",
         label: "Vận đơn",
       },
+      isPermited([ROLE.ADMIN, ROLE.VIEW]) && {
+        key: "/rating",
+        label: "Điểm cửa hàng",
+      },
     ];
   }, []);
 

@@ -61,7 +61,10 @@ export const normalizeUserLevel = (level?: string): UserLevel => {
   return "BTC";
 };
 
-export const getPriceByUserType = (product: ProductDoc, typeUser: UserLevel) => {
+export const getPriceByUserType = (
+  product: ProductDoc,
+  typeUser: UserLevel,
+) => {
   const prices = product?.variants?.[0]?.prices || {};
   if (typeUser === "BTB") return Number(prices.btb || 0);
   if (typeUser === "CTV") return Number(prices.ctv || 0);
@@ -71,16 +74,22 @@ export const getPriceByUserType = (product: ProductDoc, typeUser: UserLevel) => 
 export const formatCurrency = (value: number) =>
   Number(value || 0).toLocaleString("vi-VN") + " ₫";
 
-export const calcShipFee = (providerId?: ShippingProviderId, weight?: number) => {
+export const calcShipFee = (
+  providerId?: ShippingProviderId,
+  weight?: number,
+) => {
   if (!providerId || !weight) return 0;
   const provider = SHIPPING_PROVIDERS.find((item) => item.id === providerId);
   if (!provider) return 0;
   return Math.ceil(Number(weight)) * provider.feePerKg;
 };
 
-export const sortByCreatedDesc = <T extends { createdAt?: string }>(items: T[]) => {
+export const sortByCreatedDesc = <T extends { createdAt?: string }>(
+  items: T[],
+) => {
   return [...items].sort(
-    (a, b) => dayjs(b.createdAt || 0).valueOf() - dayjs(a.createdAt || 0).valueOf(),
+    (a, b) =>
+      dayjs(b.createdAt || 0).valueOf() - dayjs(a.createdAt || 0).valueOf(),
   );
 };
 
@@ -98,8 +107,16 @@ export const subscribeOrders = (callback: (orders: OrderDoc[]) => void) => {
 
 export const getInitialOrderReferences = async () => {
   const [userSnap, productSnap, promotionSnap] = await Promise.all([
-    getDocs(query(collection(db, "Users"), where("isStaff", "==", false))),
-    getDocs(query(collection(db, "Products"), where("status", "==", "AVAILABLE"))),
+    getDocs(
+      query(
+        collection(db, "Users"),
+        where("isStaff", "==", false),
+        where("status", "==", "ACTIVE"),
+      ),
+    ),
+    getDocs(
+      query(collection(db, "Products"), where("status", "==", "AVAILABLE")),
+    ),
     getDocs(collection(db, "Promotions")),
   ]);
 
@@ -123,8 +140,10 @@ export const getInitialOrderReferences = async () => {
 
 export const findCustomerByPhone = (users: AppUser[], phoneNumber: string) => {
   return (
-    users.find((item) => String(item.phoneNumber || "").trim() === String(phoneNumber).trim()) ||
-    null
+    users.find(
+      (item) =>
+        String(item.phoneNumber || "").trim() === String(phoneNumber).trim(),
+    ) || null
   );
 };
 
@@ -136,7 +155,9 @@ export const getProductPromotion = (
     if (promo.status !== "ONGOING") return false;
     if (promo.scope !== "PRODUCT") return false;
 
-    const productInPromo = promo.products?.find((item) => item.idProduct === productId);
+    const productInPromo = promo.products?.find(
+      (item) => item.idProduct === productId,
+    );
     if (!productInPromo) return false;
 
     const usedAmount = Number(productInPromo.usedAmount || 0);
@@ -155,7 +176,9 @@ export const getDiscountedUnitPrice = (
   const campaign = getProductPromotion(promotions, product.id);
   if (!campaign) return basePrice;
 
-  const productCampaign = campaign.products?.find((item) => item.idProduct === product.id);
+  const productCampaign = campaign.products?.find(
+    (item) => item.idProduct === product.id,
+  );
   if (!productCampaign) return basePrice;
 
   const discountValue =
@@ -181,7 +204,9 @@ export const buildSelectedOrderProduct = (
 ): SelectedOrderProduct => {
   const unitPrice = getDiscountedUnitPrice(product, typeUser, promotions);
   const campaign = getProductPromotion(promotions, product.id);
-  const productCampaign = campaign?.products?.find((item) => item.idProduct === product.id);
+  const productCampaign = campaign?.products?.find(
+    (item) => item.idProduct === product.id,
+  );
 
   const discountValue =
     typeUser === "BTB"
@@ -294,10 +319,13 @@ export const updatePromotionStatsForOrder = async (params: {
     const nextProducts = [...(promo.products || [])];
     nextProducts[productIndex] = {
       ...nextProducts[productIndex],
-      usedAmount: Number(nextProducts[productIndex].usedAmount || 0) + info.quantity,
-      totalSale: Number(nextProducts[productIndex].totalSale || 0) + info.quantity,
+      usedAmount:
+        Number(nextProducts[productIndex].usedAmount || 0) + info.quantity,
+      totalSale:
+        Number(nextProducts[productIndex].totalSale || 0) + info.quantity,
       totalRevenue:
-        Number(nextProducts[productIndex].totalRevenue || 0) + Number(info.revenue || 0),
+        Number(nextProducts[productIndex].totalRevenue || 0) +
+        Number(info.revenue || 0),
     };
 
     const promoRef = doc(db, "Promotions", campaignId);
@@ -318,7 +346,10 @@ export const ensureConversationForCustomer = async (params: {
 }) => {
   const { userId, customerName } = params;
 
-  const q = query(collection(db, "conversations"), where("customerId", "==", userId));
+  const q = query(
+    collection(db, "conversations"),
+    where("customerId", "==", userId),
+  );
   const snapshot = await getDocs(q);
 
   if (!snapshot.empty) {
@@ -356,10 +387,16 @@ export const sendOrderMessageToCustomer = async (params: {
 }) => {
   const { userId, customerName, products, orderId } = params;
 
-  const conversationId = await ensureConversationForCustomer({ userId, customerName });
+  const conversationId = await ensureConversationForCustomer({
+    userId,
+    customerName,
+  });
 
   const productSummary = products
-    .map((item) => `- ${item.name} x${item.quantity} (${formatCurrency(item.lineTotal)})`)
+    .map(
+      (item) =>
+        `- ${item.name} x${item.quantity} (${formatCurrency(item.lineTotal)})`,
+    )
     .join("\n");
 
   const text = `Shop đã tạo đơn hàng cho anh/chị.\nMã đơn: ${orderId}\nDanh sách sản phẩm:\n${productSummary}`;
