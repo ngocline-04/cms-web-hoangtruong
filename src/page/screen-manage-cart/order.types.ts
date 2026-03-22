@@ -1,6 +1,10 @@
 export type UserLevel = "BTC" | "BTB" | "CTV";
-export type OrderStatus = "PENDING_SHIPPING" | "CANCELLED" | "SUCCESS";
-export type PaymentStatus = "UNPAID" | "PAID";
+export type OrderStatus =
+  | "PENDING_APPROVAL"
+  | "PENDING_SHIPPING"
+  | "CANCELLED"
+  | "SUCCESS";
+export type PaymentStatus = "PENDING" | "PAID";
 export type PaymentType = "COD" | "BANK_TRANSFER";
 export type ShippingProviderId = "SPX" | "JNT";
 
@@ -22,21 +26,34 @@ export type AppUser = {
   }>;
 };
 
+export type ProductVariant = {
+  stock?: number;
+  prices?: {
+    btc?: number;
+    btb?: number;
+    ctv?: number;
+  };
+  attributes?: Record<string, any>;
+};
+
 export type ProductDoc = {
   id: string;
   name: string;
   category?: string;
   images?: string[];
-  status?: string;
-  variants?: Array<{
-    stock?: number;
-    prices?: {
-      btc?: number;
-      btb?: number;
-      ctv?: number;
-    };
-    attributes?: Record<string, any>;
-  }>;
+  variants?: ProductVariant[];
+};
+
+export type PromotionProduct = {
+  idProduct: string;
+  priceBtc: number | null;
+  priceBtb: number | null;
+  priceCtv: number | null;
+  totalAmount: number;
+  usedAmount?: number;
+  totalSale?: number;
+  totalRevenue?: number;
+  minQuantity?: number;
 };
 
 export type PromotionDoc = {
@@ -45,19 +62,10 @@ export type PromotionDoc = {
   status: "UPCOMING" | "ONGOING" | "EXPIRED" | "DISABLED";
   discountType: "percent" | "amount";
   scope: "CUSTOMER" | "CART" | "PRODUCT";
-  products?: Array<{
-    idProduct: string;
-    priceBtc: number | null;
-    priceBtb: number | null;
-    priceCtv: number | null;
-    totalAmount: number;
-    usedAmount?: number;
-    totalSale?: number;
-    totalRevenue?: number;
-  }>;
-  totalSale?: number;
-  totalRevenue?: number;
-  updatedAt?: string;
+  startDate?: string;
+  expiredDate?: string;
+  applyForUserLevels?: UserLevel[];
+  products?: PromotionProduct[];
 };
 
 export type SelectedOrderProduct = {
@@ -65,9 +73,16 @@ export type SelectedOrderProduct = {
   name: string;
   image?: string;
   category?: string;
+
+  variantId?: string;
+  variantIndex?: number;
+  variantLabel?: string;
+  variantAttributes?: Record<string, any>;
+
   unitPrice: number;
   quantity: number;
   lineTotal: number;
+
   promotion?: {
     campaignId: string;
     campaignName: string;
@@ -88,7 +103,7 @@ export type OrderDoc = {
   totalProductAmount: number;
   shipFee: number;
   totalAmount: number;
-  idDVVC: ShippingProviderId;
+  idDVVC: ShippingProviderId | "";
   status: OrderStatus;
   statusPayment: PaymentStatus;
   typePayment: PaymentType;
@@ -99,27 +114,77 @@ export type OrderDoc = {
   cancelReason?: string;
   createdAt: string;
   createdBy: string;
+
+  paymentId: string;
+  dateKey: string;
+  monthKey: string;
+  hourOfDay: number;
+  timeBucket: string;
+  dayOfWeek: number;
+
+  branchCode?: string;
+  approveNote?: string;
+  approvedAt?: string;
+  approvedBy?: string;
 };
 
-export type CreateOrderPayload = {
+export type PaymentDoc = {
+  id: string;
+  orderId: string;
   idUser: string;
   customerName: string;
   customerPhone: string;
-  typeUser: UserLevel;
-  addressShowroom: string;
-  addressReceive: string;
-  products: SelectedOrderProduct[];
+  amount: number;
   totalProductAmount: number;
   shipFee: number;
-  totalAmount: number;
-  idDVVC: ShippingProviderId;
-  status: OrderStatus;
-  statusPayment: PaymentStatus;
+  status: PaymentStatus;
   typePayment: PaymentType;
-  weight: number;
-  length: number;
-  width: number;
-  height: number;
+  source: "ORDER";
   createdAt: string;
-  createdBy: string;
+  paidAt?: string | null;
+  dateKey: string;
+  monthKey: string;
+  hourOfDay: number;
+  timeBucket: string;
 };
+
+export type ProductSaleLogDoc = {
+  id: string;
+  orderId: string;
+  paymentId: string;
+  idProduct: string;
+  productName: string;
+
+  variantId?: string | null;
+  variantIndex?: number | null;
+  variantLabel?: string | null;
+  variantAttributes?: Record<string, any> | null;
+
+  idUser: string;
+  customerName: string;
+  customerPhone: string;
+
+  idCampaign?: string | null;
+  campaignName?: string | null;
+
+  typeUser: UserLevel;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  orderTotalAmount: number;
+  totalProductAmount: number;
+  shipFee: number;
+
+  paymentStatus: PaymentStatus;
+  typePayment: PaymentType;
+  orderStatus: OrderStatus;
+
+  createdAt: string;
+  dateKey: string;
+  monthKey: string;
+  hourOfDay: number;
+  timeBucket: string;
+  dayOfWeek: number;
+};
+
+export type CreateOrderPayload = Omit<OrderDoc, "id">;

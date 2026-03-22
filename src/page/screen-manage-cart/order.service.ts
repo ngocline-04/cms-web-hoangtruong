@@ -23,6 +23,8 @@ import type {
   SelectedOrderProduct,
   ShippingProviderId,
   UserLevel,
+  PaymentDoc,
+  ProductSaleLogDoc,
 } from "./order.types";
 
 export const CURRENT_ADMIN_ID = "staff_001";
@@ -50,6 +52,7 @@ export const SHOWROOM_OPTIONS = [
 ];
 
 export const ORDER_STATUS_TABS = [
+  { key: "PENDING_APPROVAL", label: "Chờ phê duyệt" },
   { key: "PENDING_SHIPPING", label: "Đang chờ vận chuyển" },
   { key: "CANCELLED", label: "Đã huỷ" },
   { key: "SUCCESS", label: "Thành công" },
@@ -64,8 +67,11 @@ export const normalizeUserLevel = (level?: string): UserLevel => {
 export const getPriceByUserType = (
   product: ProductDoc,
   typeUser: UserLevel,
+  variantIndex = 0,
 ) => {
-  const prices = product?.variants?.[0]?.prices || {};
+  const variant = getVariantByIndex(product, variantIndex);
+  const prices = variant?.prices || {};
+
   if (typeUser === "BTB") return Number(prices.btb || 0);
   if (typeUser === "CTV") return Number(prices.ctv || 0);
   return Number(prices.btc || 0);
@@ -147,95 +153,375 @@ export const findCustomerByPhone = (users: AppUser[], phoneNumber: string) => {
   );
 };
 
+const getPromotionProduct = (promotion: PromotionDoc, productId: string) => {
+  return promotion?.products?.find(
+    (item: any) => item?.idProduct === productId,
+  );
+};
+
+export const validatePromotion = ({
+  promotion,
+  productId,
+  typeUser,
+  quantity = 1,
+}: {
+  promotion: PromotionDoc;
+  productId: string;
+  typeUser: UserLevel;
+  quantity?: number;
+}) => {
+  if (!promotion) return false;
+
+  const now = dayjs();
+
+  if (promotion.status !== "ONGOING") return false;
+  if (promotion.scope !== "PRODUCT") return false;
+
+  const promotionAny = promotion as any;
+
+  if (promotionAny.startDate && dayjs(promotionAny.startDate).isValid()) {
+    if (now.isBefore(dayjs(promotionAny.startDate))) return false;
+  }
+
+  if (promotionAny.endDate && dayjs(promotionAny.endDate).isValid()) {
+    if (now.isAfter(dayjs(promotionAny.endDate))) return false;
+  }
+
+  const productInCampaign = getPromotionProduct(promotion, productId);
+  if (!productInCampaign) return false;
+
+  const usedAmount = Number(productInCampaign.usedAmount || 0);
+  const totalAmount = Number(productInCampaign.totalAmount || 0);
+  if (totalAmount > 0 && usedAmount >= totalAmount) return false;
+
+  if (
+    Array.isArray(promotionAny.applyForUserLevels) &&
+    promotionAny.applyForUserLevels.length > 0
+  ) {
+    if (!promotionAny.applyForUserLevels.includes(typeUser)) return false;
+  }
+
+  if (productInCampaign.minQuantity) {
+    if (quantity < Number(productInCampaign.minQuantity || 0)) return false;
+  }
+
+  return true;
+};
+
 export const getProductPromotion = (
   promotions: PromotionDoc[],
   productId: string,
+  typeUser?: UserLevel,
+  quantity = 1,
 ): PromotionDoc | undefined => {
-  return promotions.find((promo) => {
-    if (promo.status !== "ONGOING") return false;
-    if (promo.scope !== "PRODUCT") return false;
-
-    const productInPromo = promo.products?.find(
-      (item) => item.idProduct === productId,
-    );
-    if (!productInPromo) return false;
-
-    const usedAmount = Number(productInPromo.usedAmount || 0);
-    const totalAmount = Number(productInPromo.totalAmount || 0);
-
-    return usedAmount < totalAmount;
-  });
+  return promotions.find((promo) =>
+    validatePromotion({
+      promotion: promo,
+      productId,
+      typeUser: typeUser || "BTC",
+      quantity,
+    }),
+  );
 };
 
 export const getDiscountedUnitPrice = (
   product: ProductDoc,
   typeUser: UserLevel,
   promotions: PromotionDoc[],
+  selectedPromotion?: PromotionDoc | null,
+  quantity = 1,
+  variantIndex = 0,
 ) => {
-  const basePrice = getPriceByUserType(product, typeUser);
-  const campaign = getProductPromotion(promotions, product.id);
+  const basePrice = getPriceByUserType(product, typeUser, variantIndex);
+
+  let campaign: PromotionDoc | undefined;
+
+  if (
+    selectedPromotion &&
+    validatePromotion({
+      promotion: selectedPromotion,
+      productId: product.id,
+      typeUser,
+      quantity,
+    })
+  ) {
+    campaign = selectedPromotion;
+  }
+
+  if (!campaign) {
+    campaign = getProductPromotion(promotions, product.id, typeUser, quantity);
+  }
+
   if (!campaign) return basePrice;
 
-  const productCampaign = campaign.products?.find(
-    (item) => item.idProduct === product.id,
-  );
+  const productCampaign = getPromotionProduct(campaign, product.id);
   if (!productCampaign) return basePrice;
 
-  const discountValue =
+  const salePrice =
     typeUser === "BTB"
       ? Number(productCampaign.priceBtb || 0)
       : typeUser === "CTV"
         ? Number(productCampaign.priceCtv || 0)
         : Number(productCampaign.priceBtc || 0);
 
-  if (!discountValue) return basePrice;
+  if (!salePrice) return basePrice;
 
-  if (campaign.discountType === "percent") {
-    return Math.max(0, basePrice - (basePrice * discountValue) / 100);
-  }
-
-  return Math.max(0, basePrice - discountValue);
+  return Math.max(0, salePrice);
 };
 
 export const buildSelectedOrderProduct = (
   product: ProductDoc,
   typeUser: UserLevel,
   promotions: PromotionDoc[],
+  selectedPromotion?: PromotionDoc | null,
+  quantity = 1,
+  variantIndex = 0,
 ): SelectedOrderProduct => {
-  const unitPrice = getDiscountedUnitPrice(product, typeUser, promotions);
-  const campaign = getProductPromotion(promotions, product.id);
-  const productCampaign = campaign?.products?.find(
-    (item) => item.idProduct === product.id,
-  );
+  const variant = getVariantByIndex(product, variantIndex);
+  const basePrice = getPriceByUserType(product, typeUser, variantIndex);
+  const variantId = getVariantId(product.id, variantIndex);
+  const variantLabel = getVariantLabel(variant);
+  const variantAttributes = variant?.attributes || {};
+
+  let campaign: PromotionDoc | undefined;
+
+  if (
+    selectedPromotion &&
+    validatePromotion({
+      promotion: selectedPromotion,
+      productId: product.id,
+      typeUser,
+      quantity,
+    })
+  ) {
+    campaign = selectedPromotion;
+  }
+
+  if (!campaign) {
+    campaign = getProductPromotion(promotions, product.id, typeUser, quantity);
+  }
+
+  if (!campaign) {
+    return {
+      id: product.id,
+      name: product.name || "",
+      image: product.images?.[0] || "",
+      category: product.category || "",
+      variantId,
+      variantIndex,
+      variantLabel,
+      variantAttributes,
+      quantity,
+      unitPrice: basePrice,
+      lineTotal: basePrice * quantity,
+      promotion: null,
+    };
+  }
+
+  const productCampaign = getPromotionProduct(campaign, product.id);
+  if (!productCampaign) {
+    return {
+      id: product.id,
+      name: product.name || "",
+      image: product.images?.[0] || "",
+      category: product.category || "",
+      variantId,
+      variantIndex,
+      variantLabel,
+      variantAttributes,
+      quantity,
+      unitPrice: basePrice,
+      lineTotal: basePrice * quantity,
+      promotion: null,
+    };
+  }
+
+  const salePrice =
+    typeUser === "BTB"
+      ? Number(productCampaign.priceBtb || 0)
+      : typeUser === "CTV"
+        ? Number(productCampaign.priceCtv || 0)
+        : Number(productCampaign.priceBtc || 0);
+
+  if (!salePrice) {
+    return {
+      id: product.id,
+      name: product.name || "",
+      image: product.images?.[0] || "",
+      category: product.category || "",
+      variantId,
+      variantIndex,
+      variantLabel,
+      variantAttributes,
+      quantity,
+      unitPrice: basePrice,
+      lineTotal: basePrice * quantity,
+      promotion: null,
+    };
+  }
+
+  const unitPrice = Math.max(0, salePrice);
 
   const discountValue =
-    typeUser === "BTB"
-      ? Number(productCampaign?.priceBtb || 0)
-      : typeUser === "CTV"
-        ? Number(productCampaign?.priceCtv || 0)
-        : Number(productCampaign?.priceBtc || 0);
+    campaign.discountType === "percent"
+      ? Math.round(((basePrice - unitPrice) / basePrice) * 100)
+      : Math.max(0, basePrice - unitPrice);
 
   return {
     id: product.id,
-    name: product.name,
+    name: product.name || "",
     image: product.images?.[0] || "",
-    category: product.category,
-    quantity: 1,
+    category: product.category || "",
+    variantId,
+    variantIndex,
+    variantLabel,
+    variantAttributes,
+    quantity,
     unitPrice,
-    lineTotal: unitPrice,
-    promotion: campaign
-      ? {
-          campaignId: campaign.id,
-          campaignName: campaign.name,
-          discountType: campaign.discountType,
-          discountValue,
-        }
-      : null,
+    lineTotal: unitPrice * quantity,
+    promotion: {
+      campaignId: campaign.id || "",
+      campaignName: campaign.name || "",
+      discountType: campaign.discountType,
+      discountValue,
+    },
+  };
+};
+
+const buildAnalyticsTime = (isoDate: string) => {
+  const time = dayjs(isoDate);
+
+  return {
+    dateKey: time.format("YYYY-MM-DD"),
+    monthKey: time.format("YYYY-MM"),
+    hourOfDay: time.hour(),
+    timeBucket: `${time.format("HH")}:00-${time.format("HH")}:59`,
+    dayOfWeek: time.day(),
   };
 };
 
 export const createOrder = async (payload: CreateOrderPayload) => {
-  return addDoc(collection(db, "Orders"), payload);
+  const createdAt = payload.createdAt || dayjs().toISOString();
+  const analyticsTime = buildAnalyticsTime(createdAt);
+
+  const orderRef = doc(collection(db, "Orders"));
+  const paymentRef = doc(collection(db, "Payments"));
+
+  const orderId = orderRef.id;
+  const paymentId = paymentRef.id;
+
+  const batch = writeBatch(db);
+
+  const safeProducts = payload.products.map((item) => ({
+    id: item.id || "",
+    name: item.name || "",
+    image: item.image || "",
+    category: item.category || "",
+    unitPrice: Number(item.unitPrice || 0),
+    quantity: Number(item.quantity || 0),
+    lineTotal: Number(item.lineTotal || 0),
+    promotion: item.promotion
+      ? {
+          campaignId: item.promotion.campaignId || "",
+          campaignName: item.promotion.campaignName || "",
+          discountType: item.promotion.discountType,
+          discountValue: Number(item.promotion.discountValue || 0),
+        }
+      : null,
+  }));
+
+  const orderDoc: OrderDoc = {
+    id: orderId,
+    ...payload,
+    customerName: payload.customerName || "",
+    customerPhone: payload.customerPhone || "",
+    addressShowroom: payload.addressShowroom || "",
+    addressReceive: payload.addressReceive || "",
+    products: safeProducts,
+    totalProductAmount: Number(payload.totalProductAmount || 0),
+    shipFee: Number(payload.shipFee || 0),
+    totalAmount: Number(payload.totalAmount || 0),
+    weight: Number(payload.weight || 0),
+    length: Number(payload.length || 0),
+    width: Number(payload.width || 0),
+    height: Number(payload.height || 0),
+    createdAt,
+    createdBy: payload.createdBy || CURRENT_ADMIN_ID,
+    paymentId,
+    ...analyticsTime,
+  };
+
+  const paymentDoc: PaymentDoc = {
+    id: paymentId,
+    orderId,
+    idUser: payload.idUser || "",
+    customerName: payload.customerName || "",
+    customerPhone: payload.customerPhone || "",
+    amount: Number(payload.totalAmount || 0),
+    totalProductAmount: Number(payload.totalProductAmount || 0),
+    shipFee: Number(payload.shipFee || 0),
+    status: payload.statusPayment,
+    typePayment: payload.typePayment,
+    source: "ORDER",
+    createdAt,
+    paidAt: payload.statusPayment === "PAID" ? createdAt : null,
+    dateKey: analyticsTime.dateKey,
+    monthKey: analyticsTime.monthKey,
+    hourOfDay: analyticsTime.hourOfDay,
+    timeBucket: analyticsTime.timeBucket,
+  };
+
+  batch.set(orderRef, orderDoc);
+  batch.set(paymentRef, paymentDoc);
+
+  safeProducts.forEach((item) => {
+    const saleLogRef = doc(collection(db, "ProductSalesLedger"));
+
+    const saleLog: ProductSaleLogDoc = {
+      id: saleLogRef.id,
+      orderId,
+      paymentId,
+      idProduct: item.id,
+      productName: item.name,
+
+      variantId: item.variantId || null,
+      variantIndex:
+        typeof item.variantIndex === "number" ? item.variantIndex : null,
+      variantLabel: item.variantLabel || null,
+      variantAttributes: item.variantAttributes || null,
+
+      idUser: payload.idUser || "",
+      customerName: payload.customerName || "",
+      customerPhone: payload.customerPhone || "",
+      idCampaign: item.promotion?.campaignId || null,
+      campaignName: item.promotion?.campaignName || null,
+      typeUser: payload.typeUser,
+      quantity: Number(item.quantity || 0),
+      unitPrice: Number(item.unitPrice || 0),
+      lineTotal: Number(item.lineTotal || 0),
+      orderTotalAmount: Number(payload.totalAmount || 0),
+      totalProductAmount: Number(payload.totalProductAmount || 0),
+      shipFee: Number(payload.shipFee || 0),
+      paymentStatus: payload.statusPayment,
+      typePayment: payload.typePayment,
+      orderStatus: payload.status,
+      createdAt,
+      dateKey: analyticsTime.dateKey,
+      monthKey: analyticsTime.monthKey,
+      hourOfDay: analyticsTime.hourOfDay,
+      timeBucket: analyticsTime.timeBucket,
+      dayOfWeek: analyticsTime.dayOfWeek,
+    };
+
+    batch.set(saleLogRef, saleLog);
+  });
+
+  await batch.commit();
+
+  return {
+    id: orderId,
+    paymentId,
+  };
 };
 
 export const updateUserPurchaseStats = async (params: {
@@ -311,7 +597,7 @@ export const updatePromotionStatsForOrder = async (params: {
     if (!promo) continue;
 
     const productIndex = promo.products?.findIndex(
-      (item) => item.idProduct === info.productId,
+      (item: any) => item.idProduct === info.productId,
     );
 
     if (productIndex === undefined || productIndex < 0) continue;
@@ -429,4 +715,25 @@ export const cancelOrder = async (orderId: string, cancelReason: string) => {
     status: "CANCELLED",
     cancelReason,
   });
+};
+
+export const getVariantByIndex = (product: ProductDoc, variantIndex = 0) => {
+  if (!Array.isArray(product?.variants) || !product.variants.length)
+    return null;
+  return product.variants[variantIndex] || product.variants[0] || null;
+};
+
+export const getVariantLabel = (
+  variant?: ProductDoc["variants"][number] | null,
+) => {
+  const attributes = variant?.attributes || {};
+  const values = Object.entries(attributes)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join(" - ");
+
+  return values || "Biến thể mặc định";
+};
+
+export const getVariantId = (productId: string, variantIndex = 0) => {
+  return `${productId}_${variantIndex}`;
 };

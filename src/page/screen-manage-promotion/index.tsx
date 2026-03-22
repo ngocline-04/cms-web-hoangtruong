@@ -1,143 +1,3 @@
-// import { useForm } from "antd/es/form/Form";
-// import { memo, useState } from "react";
-// import { useNavigate } from "react-router-dom";
-// import { Button, Card, Col, Form, Input, Modal, Row, Select } from "antd";
-// import { PlusCircleOutlined, ReloadOutlined } from "@ant-design/icons";
-
-// const Component = () => {
-//   const [form] = useForm();
-//   const [formPromo] = useForm();
-
-//   const navigate = useNavigate();
-//   const [visible, setIsVisible] = useState(false);
-
-//   return (
-//     <div className="block-content">
-//       <Card title="Danh sách khuyến mãi">
-//         <Form
-//           form={form}
-//           name="validateOnly"
-//           layout="vertical"
-//           autoComplete="off"
-//           onFinish={() => {}}
-//         >
-//           <Row gutter={24}>
-//             <Col span={8}>
-//               <Form.Item name={"keyword"} label="Tìm kiếm">
-//                 <Input
-//                   className="h-40"
-//                   placeholder="Tìm kiếm theo tên khuyến mãi"
-//                 />
-//               </Form.Item>
-//             </Col>
-//             <Col span={8}>
-//               <Form.Item label="Trạng thái" name={"category"}>
-//                 <Select
-//                   size="large"
-//                   showSearch
-//                   allowClear
-//                   optionFilterProp="label"
-//                   options={[
-//                     {
-//                       id: "ACTIVE",
-//                       label: "Đang diễn ra",
-//                     },
-//                     {
-//                       label: "Đã kết thúc",
-//                       id: "EXPIRED",
-//                     },
-//                     {
-//                       label: "Vô hiệu hoá",
-//                       id: "INACTIVE",
-//                     },
-//                   ]}
-//                   notFoundContent={null}
-//                   placeholder="Chọn trạng thái"
-//                 />
-//               </Form.Item>
-//             </Col>
-//             <Col span={8}>
-//               <Form.Item label="Hiệu suất" name={"effective"}>
-//                 <Select
-//                   size="large"
-//                   showSearch
-//                   allowClear
-//                   optionFilterProp="label"
-//                   options={[
-//                     {
-//                       id: "HIGH-EFFECTIVE",
-//                       label: "Hiệu suất cao",
-//                     },
-//                     {
-//                       id: "NORMAL-EFFECTIVE",
-//                       label: "Hiệu suất trung bình",
-//                     },
-//                     {
-//                       label: "Hiệu suất thấp",
-//                       id: "LOW-EFFECTIVE",
-//                     },
-//                   ]}
-//                   notFoundContent={null}
-//                   placeholder="Chọn trạng thái"
-//                 />
-//               </Form.Item>
-//             </Col>
-//           </Row>
-//           <Row>
-//             <Form.Item>
-//               <Button onClick={() => {}} type="primary" className="h-40">
-//                 Tìm kiếm
-//               </Button>
-//             </Form.Item>
-//             <Form.Item className="ml-16">
-//               <Button
-//                 onClick={() => {
-//                   form.resetFields();
-//                 }}
-//                 icon={<ReloadOutlined />}
-//                 className="h-40"
-//                 type="default"
-//               >
-//                 Reset
-//               </Button>
-//             </Form.Item>
-//             <Form.Item className="ml-16">
-//               <Button
-//                 onClick={() => {
-//                   navigate("/promotion/add-promotion");
-//                 }}
-//                 icon={<PlusCircleOutlined />}
-//                 className="h-40"
-//                 type="primary"
-//               >
-//                 Thêm mới
-//               </Button>
-//             </Form.Item>
-//           </Row>
-//         </Form>
-//       </Card>
-//       <Modal
-//         title="Tạo mới khuyến mãi"
-//         open={visible}
-//         width={1000}
-//         footer={null}
-//       >
-//         <Form
-//           form={formPromo}
-//           name="validateOnly"
-//           layout="vertical"
-//           autoComplete="off"
-//           onFinish={() => {}}
-//         ></Form>
-//       </Modal>
-//     </div>
-//   );
-// };
-
-// const ManagePromotion = memo(Component);
-
-// export { ManagePromotion };
-
 import { useForm } from "antd/es/form/Form";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -180,8 +40,11 @@ const Component = () => {
     if (item?.status === "DISABLED") return "DISABLED";
 
     const now = dayjs();
-    const startDate = dayjs(item?.startDate);
-    const expiredDate = dayjs(item?.expiredDate);
+    const startDate = item?.startDate ? dayjs(item.startDate) : null;
+    const expiredDate = item?.expiredDate ? dayjs(item.expiredDate) : null;
+
+    if (!startDate || !startDate.isValid()) return "UPCOMING";
+    if (!expiredDate || !expiredDate.isValid()) return "UPCOMING";
 
     if (now.isBefore(startDate)) return "UPCOMING";
     if (now.isAfter(expiredDate)) return "EXPIRED";
@@ -206,19 +69,40 @@ const Component = () => {
       showLoading();
 
       const querySnapshot = await getDocs(collection(db, "Promotions"));
-      const data = querySnapshot.docs.map((item) => ({
+      const rawData = querySnapshot.docs.map((item) => ({
         id: item.id,
         ...item.data(),
       }));
 
-      const mapped = data.map((item: any) => ({
-        ...item,
-        computedStatus: getPromotionStatus(item),
-        effectiveness: getEffectiveness(item),
-      }));
+      const updatedData = await Promise.all(
+        rawData.map(async (item: any) => {
+          const computedStatus = getPromotionStatus(item);
+          const effectiveness = getEffectiveness(item);
 
-      setPromotions(mapped);
-      setFilteredData(mapped);
+          const currentStatus = item?.status;
+
+          if (
+            currentStatus !== "DISABLED" &&
+            currentStatus !== computedStatus
+          ) {
+            await updateDoc(doc(db, "Promotions", item.id), {
+              status: computedStatus,
+              updatedAt: dayjs().toISOString(),
+            });
+          }
+
+          return {
+            ...item,
+            status: currentStatus === "DISABLED" ? "DISABLED" : computedStatus,
+            computedStatus:
+              currentStatus === "DISABLED" ? "DISABLED" : computedStatus,
+            effectiveness,
+          };
+        }),
+      );
+
+      setPromotions(updatedData);
+      setFilteredData(updatedData);
     } catch (error) {
       console.error(error);
       toast.error("Lấy danh sách khuyến mãi thất bại");
@@ -276,7 +160,9 @@ const Component = () => {
 
       formPromo.setFieldsValue({
         startDate: record?.startDate ? dayjs(record.startDate) : undefined,
-        expiredDate: record?.expiredDate ? dayjs(record.expiredDate) : undefined,
+        expiredDate: record?.expiredDate
+          ? dayjs(record.expiredDate)
+          : undefined,
       });
 
       setIsVisible(true);
@@ -353,8 +239,10 @@ const Component = () => {
   };
 
   const renderEffectiveTag = (effective: string) => {
-    if (effective === "HIGH-EFFECTIVE") return <Tag color="green">Hiệu suất cao</Tag>;
-    if (effective === "NORMAL-EFFECTIVE") return <Tag color="gold">Hiệu suất trung bình</Tag>;
+    if (effective === "HIGH-EFFECTIVE")
+      return <Tag color="green">Hiệu suất cao</Tag>;
+    if (effective === "NORMAL-EFFECTIVE")
+      return <Tag color="gold">Hiệu suất trung bình</Tag>;
     return <Tag color="red">Hiệu suất thấp</Tag>;
   };
 
@@ -429,10 +317,7 @@ const Component = () => {
               onConfirm={() => handleDisablePromotion(record)}
               disabled={record?.computedStatus === "DISABLED"}
             >
-              <Button
-                danger
-                disabled={record?.computedStatus === "DISABLED"}
-              >
+              <Button danger disabled={record?.computedStatus === "DISABLED"}>
                 Vô hiệu hoá
               </Button>
             </Popconfirm>
@@ -488,7 +373,10 @@ const Component = () => {
                   optionFilterProp="label"
                   options={[
                     { value: "HIGH-EFFECTIVE", label: "Hiệu suất cao" },
-                    { value: "NORMAL-EFFECTIVE", label: "Hiệu suất trung bình" },
+                    {
+                      value: "NORMAL-EFFECTIVE",
+                      label: "Hiệu suất trung bình",
+                    },
                     { value: "LOW-EFFECTIVE", label: "Hiệu suất thấp" },
                   ]}
                   placeholder="Chọn hiệu suất"
@@ -545,7 +433,11 @@ const Component = () => {
       </Card>
 
       <Modal
-        title={mode === "detail" ? "Chi tiết khuyến mãi" : "Cập nhật thời gian khuyến mãi"}
+        title={
+          mode === "detail"
+            ? "Chi tiết khuyến mãi"
+            : "Cập nhật thời gian khuyến mãi"
+        }
         open={visible}
         width={1000}
         footer={null}
@@ -582,13 +474,17 @@ const Component = () => {
 
               <Descriptions.Item label="Ngày bắt đầu">
                 {selectedPromotion?.startDate
-                  ? dayjs(selectedPromotion.startDate).format("DD/MM/YYYY HH:mm")
+                  ? dayjs(selectedPromotion.startDate).format(
+                      "DD/MM/YYYY HH:mm",
+                    )
                   : ""}
               </Descriptions.Item>
 
               <Descriptions.Item label="Ngày kết thúc">
                 {selectedPromotion?.expiredDate
-                  ? dayjs(selectedPromotion.expiredDate).format("DD/MM/YYYY HH:mm")
+                  ? dayjs(selectedPromotion.expiredDate).format(
+                      "DD/MM/YYYY HH:mm",
+                    )
                   : ""}
               </Descriptions.Item>
 
@@ -597,11 +493,15 @@ const Component = () => {
               </Descriptions.Item>
 
               <Descriptions.Item label="Doanh thu">
-                {Number(selectedPromotion?.totalRevenue || 0).toLocaleString("vi-VN")} ₫
+                {Number(selectedPromotion?.totalRevenue || 0).toLocaleString(
+                  "vi-VN",
+                )}{" "}
+                ₫
               </Descriptions.Item>
             </Descriptions>
 
-            {selectedPromotion?.scope === "PRODUCT" && selectedPromotion?.products?.length ? (
+            {selectedPromotion?.scope === "PRODUCT" &&
+            selectedPromotion?.products?.length ? (
               <div className="mt-16">
                 <Table
                   rowKey="idProduct"
@@ -626,7 +526,9 @@ const Component = () => {
                           ) : null}
                           <div className="ml-8">
                             <div>{record?.productName}</div>
-                            <div className="text-gray-500">{record?.idProduct}</div>
+                            <div className="text-gray-500">
+                              {record?.idProduct}
+                            </div>
                           </div>
                         </div>
                       ),
@@ -687,11 +589,7 @@ const Component = () => {
         ) : null}
 
         {mode === "edit" && selectedPromotion ? (
-          <Form
-            form={formPromo}
-            layout="vertical"
-            onFinish={handleUpdateDate}
-          >
+          <Form form={formPromo} layout="vertical" onFinish={handleUpdateDate}>
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item
@@ -709,7 +607,9 @@ const Component = () => {
                           dayjs(value).isAfter(dayjs(expiredDate))
                         ) {
                           return Promise.reject(
-                            new Error("Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc"),
+                            new Error(
+                              "Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc",
+                            ),
                           );
                         }
                         return Promise.resolve();
@@ -742,7 +642,9 @@ const Component = () => {
                           dayjs(value).isBefore(dayjs(startDate))
                         ) {
                           return Promise.reject(
-                            new Error("Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu"),
+                            new Error(
+                              "Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu",
+                            ),
                           );
                         }
                         return Promise.resolve();
