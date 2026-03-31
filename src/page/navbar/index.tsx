@@ -26,8 +26,17 @@ function LayoutSaving() {
 
   const items: any[] = React.useMemo(() => {
     return [
-      isPermited([ROLE.ADMIN, ROLE.CREATE_PRODUCT, ROLE.VIEW]) && {
+      isPermited([
+        ROLE.ADMIN,
+        ROLE.CREATE_PRODUCT,
+        ROLE.VIEW,
+        ROLE.CREATE_CUSTOMER,
+      ]) && {
         key: "/",
+        label: "La bàn dữ liệu",
+      },
+      isPermited([ROLE.ADMIN, ROLE.CREATE_PRODUCT, ROLE.VIEW]) && {
+        key: "/product",
         label: "Quản lý sản phẩm",
       },
       isPermited([ROLE.ADMIN, ROLE.CREATE_CUSTOMER, ROLE.VIEW]) && {
@@ -45,6 +54,10 @@ function LayoutSaving() {
       isPermited([ROLE.ADMIN, ROLE.VIEW]) && {
         key: "/cart",
         label: "Vận đơn",
+      },
+      isPermited([ROLE.ADMIN, ROLE.VIEW]) && {
+        key: "/payment",
+        label: "Trạng thái thanh toán",
       },
       isPermited([ROLE.ADMIN, ROLE.VIEW]) && {
         key: "/rating",
@@ -124,7 +137,7 @@ function LayoutSaving() {
             className="text-18"
             icon={<CommentOutlined />}
             type="text"
-            onClick={() => navigate('/support')}
+            onClick={() => navigate("/support")}
           >
             Tin nhắn từ khách hàng
           </Button>

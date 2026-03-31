@@ -13,6 +13,9 @@ import { ManagePromotion } from "@/page/screen-manage-promotion";
 import { ManageCart } from "@/page/screen-manage-cart";
 import ChatConversationMockup from "@/page/screen-support";
 import { AddPromotion } from "@/page/screen-manage-promotion/add-promo";
+import DashboardPage from "@/page/dashboard";
+import AdminProductReviewsPage from "@/page/product-review";
+import AdminPaymentsPage from "@/page/payment-page";
 
 const ProtectedRoute = ({
   element,
@@ -35,6 +38,47 @@ export const router = createBrowserRouter(
       children: [
         {
           path: "/",
+          index: true,
+          element: (
+            <ProtectedRoute
+              element={<DashboardPage />}
+              titleId="Dashboard"
+              requiredRoles={[
+                ROLE.VIEW,
+                ROLE.ADMIN,
+                ROLE.CREATE_PRODUCT,
+                ROLE.CREATE_CUSTOMER,
+              ]}
+            />
+          ),
+          errorElement: <ErrorPage isLogout={false} />,
+        },
+        {
+          path: "/rating",
+          index: true,
+          element: (
+            <ProtectedRoute
+              element={<AdminProductReviewsPage />}
+              titleId="Dashboard"
+              requiredRoles={[ROLE.VIEW, ROLE.ADMIN]}
+            />
+          ),
+          errorElement: <ErrorPage isLogout={false} />,
+        },
+                {
+          path: "/payment",
+          index: true,
+          element: (
+            <ProtectedRoute
+              element={<AdminPaymentsPage />}
+              titleId="Dashboard"
+              requiredRoles={[ROLE.VIEW, ROLE.ADMIN]}
+            />
+          ),
+          errorElement: <ErrorPage isLogout={false} />,
+        },
+        {
+          path: "/product",
           index: true,
           element: (
             <ProtectedRoute
