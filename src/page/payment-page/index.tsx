@@ -180,15 +180,8 @@ export default function AdminPaymentsPage() {
             >
               Đánh dấu đã thanh toán
             </Button>
-          ) : (
-            <Button
-              size="small"
-              loading={updatingId === record.id}
-              onClick={() => handleUpdateStatus(record, "UNPAID")}
-            >
-              Chuyển về chờ thanh toán
-            </Button>
-          )}
+          ) 
+          : null}
         </Space>
       ),
     },
