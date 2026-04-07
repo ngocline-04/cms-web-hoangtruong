@@ -40,7 +40,7 @@ import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/App";
 import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
-import saveAs from "file-saver";
+import { saveAs } from "file-saver";
 
 const { Title, Text } = Typography;
 
@@ -48,12 +48,19 @@ type OrderDoc = {
   id: string;
   idUser: string;
   customerName: string;
+  customerPhone?: string;
   totalAmount: number;
+  totalProductAmount?: number;
+  shipFee?: number;
   status: string;
   statusPayment: string;
+  typePayment?: string;
+  typeUser?: string;
+  addressReceive?: string;
   createdAt: string;
   monthKey?: string;
   dateKey?: string;
+  paymentId?: string;
 };
 
 type ProductSaleLogDoc = {
@@ -63,11 +70,30 @@ type ProductSaleLogDoc = {
   productName: string;
   idUser: string;
   customerName: string;
+  customerPhone?: string;
   quantity: number;
   lineTotal: number;
   monthKey?: string;
   dateKey?: string;
   createdAt: string;
+  paymentStatus?: string;
+  orderStatus?: string;
+  typePayment?: string;
+  typeUser?: string;
+  variantId?: string;
+  variantLabel?: string;
+};
+
+type UserDoc = {
+  id: string;
+  name?: string;
+  email?: string;
+  phoneNumber?: string;
+  level?: string;
+  status?: string;
+  isStaff?: boolean;
+  totalOrders?: number;
+  totalSpent?: number;
 };
 
 type TopProductRow = {
@@ -83,6 +109,9 @@ type TopCustomerRow = {
   key: string;
   userId: string;
   customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  customerLevel: string;
   totalOrders: number;
   totalSpent: number;
 };
@@ -108,6 +137,13 @@ const BAR_COLORS = ["#1677ff", "#52c41a", "#faad14", "#eb2f96", "#13c2c2"];
 
 const formatCurrency = (value: number) =>
   Number(value || 0).toLocaleString("vi-VN") + " ₫";
+
+const normalizeText = (value: any) =>
+  String(value ?? "")
+    .replace(/^"|"$/g, "")
+    .trim();
+
+const toNumber = (value: any) => Number(value || 0);
 
 const getMonthOptions = () => {
   return Array.from({ length: 12 }).map((_, index) => {
@@ -164,14 +200,16 @@ const Component = () => {
 
   const [orders, setOrders] = useState<OrderDoc[]>([]);
   const [saleLogs, setSaleLogs] = useState<ProductSaleLogDoc[]>([]);
+  const [users, setUsers] = useState<UserDoc[]>([]);
 
   const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
 
-      const [orderSnap, saleSnap] = await Promise.all([
+      const [orderSnap, saleSnap, userSnap] = await Promise.all([
         getDocs(collection(db, "Orders")),
         getDocs(collection(db, "ProductSalesLedger")),
+        getDocs(collection(db, "Users")),
       ]);
 
       const orderDocs = orderSnap.docs.map((item) => ({
@@ -184,8 +222,14 @@ const Component = () => {
         ...item.data(),
       })) as ProductSaleLogDoc[];
 
+      const userDocs = userSnap.docs.map((item) => ({
+        id: item.id,
+        ...item.data(),
+      })) as UserDoc[];
+
       setOrders(orderDocs);
       setSaleLogs(saleDocs);
+      setUsers(userDocs);
     } catch (error) {
       console.error(error);
       toast.error("Không tải được dữ liệu dashboard");
@@ -198,33 +242,47 @@ const Component = () => {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
+  const userMap = useMemo(() => {
+    const map = new Map<string, UserDoc>();
+    users.forEach((user) => {
+      map.set(normalizeText(user.id), user);
+    });
+    return map;
+  }, [users]);
+
   const filteredOrders = useMemo(() => {
     return orders.filter((item) => {
-      const monthKey = item.monthKey || dayjs(item.createdAt).format("YYYY-MM");
+      const monthKey = normalizeText(
+        item.monthKey || dayjs(item.createdAt).format("YYYY-MM"),
+      );
       return monthKey === selectedMonth;
     });
   }, [orders, selectedMonth]);
 
   const filteredSaleLogs = useMemo(() => {
     return saleLogs.filter((item) => {
-      const monthKey = item.monthKey || dayjs(item.createdAt).format("YYYY-MM");
+      const monthKey = normalizeText(
+        item.monthKey || dayjs(item.createdAt).format("YYYY-MM"),
+      );
       return monthKey === selectedMonth;
     });
   }, [saleLogs, selectedMonth]);
 
   const validOrders = useMemo(() => {
-    return filteredOrders.filter((item) => item.status !== "CANCELLED");
+    return filteredOrders.filter(
+      (item) => normalizeText(item.status) !== "CANCELLED",
+    );
   }, [filteredOrders]);
 
   const totalOrdersSold = useMemo(() => validOrders.length, [validOrders]);
 
   const uniqueCustomers = useMemo(() => {
-    return new Set(validOrders.map((item) => item.idUser)).size;
+    return new Set(validOrders.map((item) => normalizeText(item.idUser))).size;
   }, [validOrders]);
 
   const totalRevenue = useMemo(() => {
     return validOrders.reduce(
-      (sum, item) => sum + Number(item.totalAmount || 0),
+      (sum, item) => sum + toNumber(item.totalAmount),
       0,
     );
   }, [validOrders]);
@@ -234,13 +292,14 @@ const Component = () => {
 
     validOrders.forEach((item) => {
       const dateKey =
-        item.dateKey || dayjs(item.createdAt).format("YYYY-MM-DD");
+        normalizeText(item.dateKey) ||
+        dayjs(item.createdAt).format("YYYY-MM-DD");
 
       if (!dailyMap.has(dateKey)) {
         dailyMap.set(dateKey, new Set<string>());
       }
 
-      dailyMap.get(dateKey)?.add(item.idUser);
+      dailyMap.get(dateKey)?.add(normalizeText(item.idUser));
     });
 
     const values = Array.from(dailyMap.values()).map((set) => set.size);
@@ -263,22 +322,22 @@ const Component = () => {
     >();
 
     filteredSaleLogs.forEach((item) => {
-      const key = item.idProduct;
+      const key = normalizeText(item.idProduct);
       const current = grouped.get(key);
 
       if (current) {
-        current.quantity += Number(item.quantity || 0);
-        current.revenue += Number(item.lineTotal || 0);
-        current.orderIds.add(item.orderId);
+        current.quantity += toNumber(item.quantity);
+        current.revenue += toNumber(item.lineTotal);
+        current.orderIds.add(normalizeText(item.orderId));
         return;
       }
 
       grouped.set(key, {
-        productId: item.idProduct,
-        productName: item.productName,
-        quantity: Number(item.quantity || 0),
-        revenue: Number(item.lineTotal || 0),
-        orderIds: new Set([item.orderId]),
+        productId: key,
+        productName: normalizeText(item.productName),
+        quantity: toNumber(item.quantity),
+        revenue: toNumber(item.lineTotal),
+        orderIds: new Set([normalizeText(item.orderId)]),
       });
     });
 
@@ -301,25 +360,38 @@ const Component = () => {
       {
         userId: string;
         customerName: string;
+        customerEmail: string;
+        customerPhone: string;
+        customerLevel: string;
         totalOrders: number;
         totalSpent: number;
       }
     >();
 
     validOrders.forEach((item) => {
-      const current = grouped.get(item.idUser);
+      const userId = normalizeText(item.idUser);
+      const userInfo = userMap.get(userId);
+
+      const current = grouped.get(userId);
 
       if (current) {
         current.totalOrders += 1;
-        current.totalSpent += Number(item.totalAmount || 0);
+        current.totalSpent += toNumber(item.totalAmount);
         return;
       }
 
-      grouped.set(item.idUser, {
-        userId: item.idUser,
-        customerName: item.customerName,
+      grouped.set(userId, {
+        userId,
+        customerName:
+          normalizeText(item.customerName) || normalizeText(userInfo?.name),
+        customerEmail: normalizeText(userInfo?.email),
+        customerPhone:
+          normalizeText(item.customerPhone) ||
+          normalizeText(userInfo?.phoneNumber),
+        customerLevel:
+          normalizeText(item.typeUser) || normalizeText(userInfo?.level),
         totalOrders: 1,
-        totalSpent: Number(item.totalAmount || 0),
+        totalSpent: toNumber(item.totalAmount),
       });
     });
 
@@ -330,20 +402,21 @@ const Component = () => {
       }))
       .sort((a, b) => b.totalSpent - a.totalSpent)
       .slice(0, 10);
-  }, [validOrders]);
+  }, [userMap, validOrders]);
 
   const dailyCustomerChart = useMemo<DailyCustomerChartRow[]>(() => {
     const grouped = new Map<string, Set<string>>();
 
     validOrders.forEach((item) => {
       const rawDate =
-        item.dateKey || dayjs(item.createdAt).format("YYYY-MM-DD");
+        normalizeText(item.dateKey) ||
+        dayjs(item.createdAt).format("YYYY-MM-DD");
 
       if (!grouped.has(rawDate)) {
         grouped.set(rawDate, new Set<string>());
       }
 
-      grouped.get(rawDate)?.add(item.idUser);
+      grouped.get(rawDate)?.add(normalizeText(item.idUser));
     });
 
     return Array.from(grouped.entries())
@@ -370,16 +443,16 @@ const Component = () => {
 
   const orderStatusChart = useMemo<StatusChartRow[]>(() => {
     const pendingApproval = filteredOrders.filter(
-      (item) => item.status === "PENDING_APPROVAL",
+      (item) => normalizeText(item.status) === "PENDING_APPROVAL",
     ).length;
     const pendingShipping = filteredOrders.filter(
-      (item) => item.status === "PENDING_SHIPPING",
+      (item) => normalizeText(item.status) === "PENDING_SHIPPING",
     ).length;
     const success = filteredOrders.filter(
-      (item) => item.status === "SUCCESS",
+      (item) => normalizeText(item.status) === "SUCCESS",
     ).length;
     const cancelled = filteredOrders.filter(
-      (item) => item.status === "CANCELLED",
+      (item) => normalizeText(item.status) === "CANCELLED",
     ).length;
 
     return [
@@ -390,71 +463,33 @@ const Component = () => {
     ].filter((item) => item.value > 0);
   }, [filteredOrders]);
 
-  const handleExportReport = useCallback(() => {
+  const handleExportOrderReport = useCallback(() => {
     try {
-      const summarySheet = [
-        {
-          "Tháng báo cáo": selectedMonth,
-          "Số đơn hàng bán ra": totalOrdersSold,
-          "Số khách hàng mua": uniqueCustomers,
-          "Số khách TB mỗi ngày": avgCustomersPerDay,
-          "Doanh thu tháng": totalRevenue,
-        },
-      ];
-
-      const topProductsSheet = topProducts.map((item, index) => ({
+      const exportRows = filteredOrders.map((item, index) => ({
         STT: index + 1,
-        "Mã sản phẩm": item.productId,
-        "Tên sản phẩm": item.productName,
-        "Số lượng bán": item.quantity,
-        "Số đơn": item.totalOrders,
-        "Doanh thu": item.revenue,
-      }));
-
-      const topCustomersSheet = topCustomers.map((item, index) => ({
-        STT: index + 1,
-        "Mã khách hàng": item.userId,
-        "Tên khách hàng": item.customerName,
-        "Số đơn hàng": item.totalOrders,
-        "Tổng chi tiêu": item.totalSpent,
-      }));
-
-      const dailyCustomersSheet = dailyCustomerChart.map((item) => ({
-        Ngày: item.date,
-        "Số khách hàng": item.customers,
-      }));
-
-      const orderStatusSheet = orderStatusChart.map((item) => ({
-        "Trạng thái": item.name,
-        "Số lượng": item.value,
+        "Mã đơn hàng": normalizeText(item.id),
+        "Mã thanh toán": normalizeText(item.paymentId),
+        "Mã khách hàng": normalizeText(item.idUser),
+        "Tên khách hàng": normalizeText(item.customerName),
+        "Số điện thoại": normalizeText(item.customerPhone),
+        "Loại khách hàng": normalizeText(item.typeUser),
+        "Hình thức thanh toán": normalizeText(item.typePayment),
+        "Trạng thái đơn": normalizeText(item.status),
+        "Trạng thái thanh toán": normalizeText(item.statusPayment),
+        "Tiền hàng": toNumber(item.totalProductAmount),
+        "Phí ship": toNumber(item.shipFee),
+        "Tổng tiền": toNumber(item.totalAmount),
+        "Địa chỉ nhận": normalizeText(item.addressReceive),
+        "Ngày tạo": normalizeText(item.createdAt),
+        "Ngày key": normalizeText(item.dateKey),
+        "Tháng key": normalizeText(item.monthKey),
       }));
 
       const workbook = XLSX.utils.book_new();
-
       XLSX.utils.book_append_sheet(
         workbook,
-        XLSX.utils.json_to_sheet(summarySheet),
-        "Tong quan",
-      );
-      XLSX.utils.book_append_sheet(
-        workbook,
-        XLSX.utils.json_to_sheet(topProductsSheet),
-        "Top san pham",
-      );
-      XLSX.utils.book_append_sheet(
-        workbook,
-        XLSX.utils.json_to_sheet(topCustomersSheet),
-        "Top khach hang",
-      );
-      XLSX.utils.book_append_sheet(
-        workbook,
-        XLSX.utils.json_to_sheet(dailyCustomersSheet),
-        "Khach theo ngay",
-      );
-      XLSX.utils.book_append_sheet(
-        workbook,
-        XLSX.utils.json_to_sheet(orderStatusSheet),
-        "Trang thai don",
+        XLSX.utils.json_to_sheet(exportRows),
+        "Danh sach don hang",
       );
 
       const excelBuffer = XLSX.write(workbook, {
@@ -466,23 +501,145 @@ const Component = () => {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
 
-      saveAs(fileData, `bao-cao-dashboard-${selectedMonth}.xlsx`);
-      toast.success("Xuất báo cáo thành công");
+      saveAs(fileData, `danh-sach-don-hang-${selectedMonth}.xlsx`);
+      toast.success("Xuất danh sách đơn hàng thành công");
     } catch (error) {
       console.error(error);
-      toast.error("Xuất báo cáo thất bại");
+      toast.error("Xuất danh sách đơn hàng thất bại");
     }
-  }, [
-    avgCustomersPerDay,
-    dailyCustomerChart,
-    orderStatusChart,
-    selectedMonth,
-    topCustomers,
-    topProducts,
-    totalOrdersSold,
-    totalRevenue,
-    uniqueCustomers,
-  ]);
+  }, [filteredOrders, selectedMonth]);
+
+  const handleExportProductRevenueReport = useCallback(() => {
+    try {
+      const exportRows = filteredSaleLogs.map((item, index) => ({
+        STT: index + 1,
+        "Mã log": normalizeText(item.id),
+        "Mã đơn hàng": normalizeText(item.orderId),
+        "Mã sản phẩm": normalizeText(item.idProduct),
+        "Tên sản phẩm": normalizeText(item.productName),
+        "Biến thể": normalizeText(item.variantLabel),
+        "Mã khách hàng": normalizeText(item.idUser),
+        "Tên khách hàng": normalizeText(item.customerName),
+        "Số điện thoại": normalizeText(item.customerPhone),
+        "Loại khách hàng": normalizeText(item.typeUser),
+        "Hình thức thanh toán": normalizeText(item.typePayment),
+        "Trạng thái đơn": normalizeText(item.orderStatus),
+        "Trạng thái thanh toán": normalizeText(item.paymentStatus),
+        "Số lượng": toNumber(item.quantity),
+        "Doanh thu dòng": toNumber(item.lineTotal),
+        "Ngày tạo": normalizeText(item.createdAt),
+        "Ngày key": normalizeText(item.dateKey),
+        "Tháng key": normalizeText(item.monthKey),
+      }));
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.json_to_sheet(exportRows),
+        "Danh sach doanh thu SP",
+      );
+
+      const excelBuffer = XLSX.write(workbook, {
+        bookType: "xlsx",
+        type: "array",
+      });
+
+      const fileData = new Blob([excelBuffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      saveAs(fileData, `danh-sach-doanh-thu-san-pham-${selectedMonth}.xlsx`);
+      toast.success("Xuất danh sách doanh thu sản phẩm thành công");
+    } catch (error) {
+      console.error(error);
+      toast.error("Xuất danh sách doanh thu sản phẩm thất bại");
+    }
+  }, [filteredSaleLogs, selectedMonth]);
+
+  const handleExportCustomerReport = useCallback(() => {
+    try {
+      const grouped = new Map<
+        string,
+        {
+          userId: string;
+          customerName: string;
+          customerEmail: string;
+          customerPhone: string;
+          customerLevel: string;
+          totalOrders: number;
+          totalSpent: number;
+          latestOrderAt: string;
+        }
+      >();
+
+      validOrders.forEach((item) => {
+        const userId = normalizeText(item.idUser);
+        const userInfo = userMap.get(userId);
+        const current = grouped.get(userId);
+
+        if (current) {
+          current.totalOrders += 1;
+          current.totalSpent += toNumber(item.totalAmount);
+
+          if (
+            dayjs(item.createdAt).valueOf() > dayjs(current.latestOrderAt).valueOf()
+          ) {
+            current.latestOrderAt = normalizeText(item.createdAt);
+          }
+          return;
+        }
+
+        grouped.set(userId, {
+          userId,
+          customerName:
+            normalizeText(item.customerName) || normalizeText(userInfo?.name),
+          customerEmail: normalizeText(userInfo?.email),
+          customerPhone:
+            normalizeText(item.customerPhone) ||
+            normalizeText(userInfo?.phoneNumber),
+          customerLevel:
+            normalizeText(item.typeUser) || normalizeText(userInfo?.level),
+          totalOrders: 1,
+          totalSpent: toNumber(item.totalAmount),
+          latestOrderAt: normalizeText(item.createdAt),
+        });
+      });
+
+      const exportRows = Array.from(grouped.values()).map((item, index) => ({
+        STT: index + 1,
+        "Mã khách hàng": item.userId,
+        "Tên khách hàng": item.customerName,
+        Email: item.customerEmail,
+        "Số điện thoại": item.customerPhone,
+        "Nhóm khách hàng": item.customerLevel,
+        "Số đơn hàng trong tháng": item.totalOrders,
+        "Tổng chi tiêu trong tháng": item.totalSpent,
+        "Đơn gần nhất": item.latestOrderAt,
+      }));
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.json_to_sheet(exportRows),
+        "Danh sach khach hang",
+      );
+
+      const excelBuffer = XLSX.write(workbook, {
+        bookType: "xlsx",
+        type: "array",
+      });
+
+      const fileData = new Blob([excelBuffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      saveAs(fileData, `danh-sach-khach-hang-mua-${selectedMonth}.xlsx`);
+      toast.success("Xuất danh sách khách hàng thành công");
+    } catch (error) {
+      console.error(error);
+      toast.error("Xuất danh sách khách hàng thất bại");
+    }
+  }, [selectedMonth, userMap, validOrders]);
 
   const productColumns = [
     {
@@ -551,6 +708,9 @@ const Component = () => {
           <div>
             <div className="text-14 font-medium text-color-900">{value}</div>
             <div className="text-12 text-color-700">{record.userId}</div>
+            {record.customerEmail ? (
+              <div className="text-12 text-color-700">{record.customerEmail}</div>
+            ) : null}
           </div>
         </div>
       ),
@@ -595,13 +755,31 @@ const Component = () => {
               options={getMonthOptions()}
             />
 
-            <Button
-              size="large"
-              icon={<DownloadOutlined />}
-              onClick={handleExportReport}
-            >
-              Xuất báo cáo
-            </Button>
+            <Space wrap>
+              <Button
+                size="large"
+                icon={<DownloadOutlined />}
+                onClick={handleExportOrderReport}
+              >
+                Xuất báo cáo đơn hàng
+              </Button>
+
+              <Button
+                size="large"
+                icon={<DownloadOutlined />}
+                onClick={handleExportProductRevenueReport}
+              >
+                Xuất doanh thu sản phẩm
+              </Button>
+
+              <Button
+                size="large"
+                icon={<DownloadOutlined />}
+                onClick={handleExportCustomerReport}
+              >
+                Xuất báo cáo khách hàng
+              </Button>
+            </Space>
           </div>
         </div>
       </div>
@@ -647,7 +825,7 @@ const Component = () => {
               <DashboardCard
                 title="Doanh thu tháng"
                 value={formatCurrency(totalRevenue)}
-                subtitle="Tổng giá trị đơn thành công/chờ xử lý"
+                subtitle="Tổng giá trị đơn hợp lệ"
                 prefix={<TrophyOutlined />}
                 className="bg-gradient-to-br from-error-500 to-error-700 text-color-100"
               />
