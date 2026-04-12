@@ -338,7 +338,7 @@ const Component = () => {
                   {selectedConversation.customerName}
                 </div>
                 <div className="text-12 text-color-700">
-                  {selectedConversation.customerId}
+                  {selectedConversation?.customerUserId}
                 </div>
               </div>
 

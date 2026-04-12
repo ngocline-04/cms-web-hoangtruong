@@ -682,6 +682,11 @@ const normalizeCategoryOptions = (rawData: any[]): CategoryOption[] => {
           });
         }
       });
+    } else {
+      options.push({
+        value: item?.id,
+        label: item.name,
+      });
     }
   });
 

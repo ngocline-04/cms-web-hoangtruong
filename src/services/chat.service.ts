@@ -37,6 +37,7 @@ export interface ConversationItem {
   createdAt?: any;
   updatedAt?: any;
   status?: string;
+  customerUserId: string;
 }
 
 export interface ProductSnapshot {
