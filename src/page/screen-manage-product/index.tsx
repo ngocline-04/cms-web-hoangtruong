@@ -1,531 +1,9 @@
-// import MyDatePicker from "@/components/basic/date-picker";
-// import {
-//   Button,
-//   Card,
-//   Col,
-//   Form,
-//   Input,
-//   message,
-//   Modal,
-//   Row,
-//   Select,
-//   Table,
-//   Tag,
-//   Upload,
-//   UploadProps,
-// } from "antd";
-// import Dragger from "antd/es/upload/Dragger";
-// import { memo, useCallback, useEffect, useState } from "react";
-// import * as XLSX from "xlsx";
-// import saveAs from "file-saver";
-// import {
-//   DownloadOutlined,
-//   EditFilled,
-//   ExportOutlined,
-//   EyeOutlined,
-//   InboxOutlined,
-//   ReloadOutlined,
-// } from "@ant-design/icons";
-// import dayjs from "dayjs";
-// import { hideLoading, showLoading } from "../loading";
-// import { toast } from "react-toastify";
-// import { transformProducts } from "@/utils/common";
-// import { collection, doc, getDocs, setDoc } from "firebase/firestore";
-// import { db } from "@/App";
-
-// const Component = () => {
-//   const [form] = Form.useForm();
-//   const [file, setFile] = useState<File>();
-//   const [errorFile, setErrorFile] = useState(false);
-
-//   const [openModal, setOpenModal] = useState(false);
-//   const [excelData, setExcelData] = useState<any[]>([]);
-//   const [products, setProducts] = useState<any[]>([]);
-
-//   const [searchData, setSearchData] = useState<any>([]);
-//   const [isSearching, setIsSearching] = useState(false);
-
-//   const fetchProducts = async () => {
-//     try {
-//       showLoading();
-
-//       const querySnapshot = await getDocs(collection(db, "Products"));
-
-//       const data = querySnapshot.docs.map((doc) => ({
-//         id: doc.id,
-//         ...doc.data(),
-//       }));
-
-//       setProducts(data);
-//     } catch (error) {
-//       console.error(error);
-//       toast.error("Lấy dữ liệu sản phẩm thất bại");
-//     } finally {
-//       hideLoading();
-//     }
-//   };
-
-//   const onSearch = useCallback(() => {
-//     const values = form.getFieldsValue();
-
-//     setIsSearching(true);
-
-//     let filteredData = [...products];
-
-//     if (values.keyword) {
-//       filteredData = filteredData.filter(
-//         (item) =>
-//           item.name?.toLowerCase().includes(values.keyword.toLowerCase()) ||
-//           item.id?.toLowerCase().includes(values.keyword.toLowerCase()),
-//       );
-//     }
-
-//     if (values.status) {
-//       filteredData = filteredData.filter(
-//         (item) => item.status === values.status,
-//       );
-//     }
-
-//     if (values.createdAt) {
-//       filteredData = filteredData.filter((item) =>
-//         dayjs(item.createAt).isSame(values.createdAt, "day"),
-//       );
-//     }
-
-//     setSearchData(filteredData);
-//   }, [form, products]);
-
-//   const exportToExcel = (
-//     data: any,
-//     fileName = "production.xlsx",
-//     isExport: boolean,
-//   ) => {
-//     const worksheet = XLSX.utils.json_to_sheet(data);
-//     const workbook = XLSX.utils.book_new();
-//     XLSX.utils.book_append_sheet(workbook, worksheet, "Agents");
-
-//     const excelBuffer = XLSX.write(workbook, {
-//       bookType: "xlsx",
-//       type: "array",
-//     });
-
-//     const dataBlob = new Blob([excelBuffer], {
-//       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-//     });
-
-//     if (isExport) {
-//       saveAs(dataBlob, fileName);
-//       toast.success("Xuất file thành công");
-//     } else {
-//       return new File([dataBlob], fileName + ".xlsx", {
-//         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-//       });
-//     }
-//     hideLoading();
-//   };
-
-//   useEffect(() => {
-//     fetchProducts();
-//   }, []);
-
-//   const columns = [
-//     {
-//       title: "Ảnh",
-//       render: (_: any, record: any) => (
-//         <img
-//           src={record.images?.[0]}
-//           style={{ width: 60, height: 60, objectFit: "cover" }}
-//         />
-//       ),
-//       width: 80,
-//     },
-
-//     {
-//       title: "ID",
-//       dataIndex: "id",
-//       width: 160,
-//     },
-
-//     {
-//       title: "Tên sản phẩm",
-//       dataIndex: "name",
-//       width: 300,
-//     },
-
-//     {
-//       title: "Danh mục",
-//       dataIndex: "category",
-//     },
-
-//     {
-//       title: "Giá CTV",
-//       render: (_: any, record: any) => {
-//         const price = record.variants?.[0]?.prices?.ctv || 0;
-//         return price.toLocaleString("vi-VN") + " ₫";
-//       },
-//     },
-
-//     {
-//       title: "Giá BTC",
-//       render: (_: any, record: any) => {
-//         const price = record.variants?.[0]?.prices?.btc || 0;
-//         return price.toLocaleString("vi-VN") + " ₫";
-//       },
-//     },
-
-//     {
-//       title: "Giá BTB",
-//       render: (_: any, record: any) => {
-//         const price = record.variants?.[0]?.prices?.btb || 0;
-//         return price.toLocaleString("vi-VN") + " ₫";
-//       },
-//     },
-
-//     {
-//       title: "Tồn kho",
-//       render: (_: any, record: any) => {
-//         const total = record.variants?.reduce(
-//           (sum: number, v: any) => sum + (v.stock || 0),
-//           0,
-//         );
-//         return total;
-//       },
-//     },
-
-//     {
-//       title: "Variants",
-//       render: (_: any, record: any) => record.variants?.length || 1,
-//     },
-
-//     {
-//       title: "Trạng thái",
-//       dataIndex: "status",
-//       render: (value: string) => {
-//         if (value === "AVAILABLE") return <Tag color="green">Còn hàng</Tag>;
-//         if (value === "SOLDOUT") return <Tag color="red">Hết hàng</Tag>;
-//         return <Tag color="orange">Không khả dụng</Tag>;
-//       },
-//     },
-//     {
-//       title: "Thao tác",
-//       render: () => {
-//         return (
-//           <div className="flex flex-row items-center">
-//             <Button
-//               type="text"
-//               icon={<EyeOutlined className="text-link-500" />}
-//               onClick={() => {
-//                 // getDetailConfig(record?.id, "VIEW");
-//               }}
-//             />
-//              <Button
-//               type="text"
-//               className="ml-16"
-//               icon={<EditFilled className="text-link-500" />}
-//               onClick={() => {
-//                 // getDetailConfig(record?.id, "VIEW");
-//               }}
-//             />
-//           </div>
-//         );
-//       },
-//     },
-//   ];
-
-//   const propsUpload: UploadProps = {
-//     name: "file",
-//     multiple: false,
-//     accept: ".xlsx", // chỉ cho phép chọn file Excel trong dialog
-
-//     beforeUpload: (file) => {
-//       const isExcel =
-//         file.type === "application/vnd.ms-excel" ||
-//         file.type ===
-//           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-
-//       if (!isExcel) {
-//         message.error("Chỉ chấp nhận file Excel");
-//         return Upload.LIST_IGNORE;
-//       }
-
-//       const reader = new FileReader();
-//       reader.onload = async (e) => {
-//         const REQUIRED_COLUMNS = [
-//           "id",
-//           "name",
-//           // "attribute_size",
-//           "category",
-//           "description",
-//           "quality",
-//           // "attribute_material",
-//           // "attribute_color",
-//           "origin",
-//           "guarantee",
-//           "amount",
-//           "status",
-//           "createAt",
-//           // "image1",
-//           // "image2",
-//           "price_ctv",
-//           "price_btc",
-//           "price_btb",
-//         ];
-//         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-//         const workbook = XLSX.read(data, { type: "array" });
-//         const sheetName = workbook.SheetNames[0];
-//         const sheet = workbook.Sheets[sheetName];
-//         const json = XLSX.utils.sheet_to_json(sheet, { header: 1 }); // header:1 -> mảng 2D
-
-//         const rows: any[] = XLSX.utils.sheet_to_json(sheet);
-//         const headers: string[] = json[0] || [];
-//         const missing = REQUIRED_COLUMNS.filter(
-//           (col) =>
-//             !headers.some(
-//               (h: string) => h.trim().toLowerCase() === col.toLowerCase(),
-//             ),
-//         );
-//         if (missing.length > 0) {
-//           setErrorFile(true);
-//           message.error(`Dữ liệu không đúng định dạng`);
-//         } else {
-//           message.success("Tải lên File thành công");
-//           setExcelData(rows);
-//         }
-//       };
-//       reader.readAsArrayBuffer(file);
-//       setFile(file);
-//       setErrorFile(false);
-//       return false; // ❗ ngăn không upload file
-//     },
-//   };
-
-//   const onCheckFile = useCallback(async () => {
-//     try {
-//       showLoading();
-//       if (file) {
-//         const data = excelData.map((item: any, index: number) => ({
-//           ...item,
-//         }));
-//         const transformedData = transformProducts(data);
-
-//         const productRef = collection(db, "Products");
-
-//         let successCount = 0;
-
-//         for (const product of transformedData) {
-//           await setDoc(doc(productRef, product?.id), product);
-//           successCount++;
-//         }
-
-//         toast.success(`Upload thành công ${successCount} sản phẩm`);
-//       }
-//     } catch (error) {
-//     } finally {
-//       hideLoading();
-//       setOpenModal(false);
-//     }
-//   }, [excelData, file]);
-
-//   return (
-//     <div className="block-content">
-//       <Card title="Danh sách sản phẩm">
-//         <Form
-//           form={form}
-//           name="validateOnly"
-//           layout="vertical"
-//           autoComplete="off"
-//           onFinish={() => {}}
-//         >
-//           <Row gutter={24}>
-//             <Col span={6}>
-//               <Form.Item name={"keyword"} label="Tìm kiếm">
-//                 <Input
-//                   className="h-40"
-//                   placeholder="Tìm kiếm theo ID, tên sản phẩm"
-//                 />
-//               </Form.Item>
-//             </Col>
-//             <Col span={6}>
-//               <Form.Item label="Danh mục" name={"category"}>
-//                 <Select
-//                   size="large"
-//                   showSearch
-//                   allowClear
-//                   optionFilterProp="label"
-//                   options={[]}
-//                   notFoundContent={null}
-//                   placeholder="Chọn danh mục"
-//                 />
-//               </Form.Item>
-//             </Col>
-//             <Col span={6}>
-//               <Form.Item label="Trạng thái" name={"status"}>
-//                 <Select
-//                   size="large"
-//                   showSearch
-//                   allowClear
-//                   optionFilterProp="label"
-//                   options={[
-//                     { value: "AVAILABLE", label: "Còn hàng" },
-//                     { value: "SOLDOUT", label: "Hết hàng" },
-//                     {
-//                       value: "INACTIVE",
-//                       label: "Không khả dụng",
-//                     },
-//                   ]}
-//                   notFoundContent={null}
-//                   placeholder="Trạng thái"
-//                 />
-//               </Form.Item>
-//             </Col>
-//             <Col span={6}>
-//               <Form.Item
-//                 name={"createdAt"}
-//                 label={"Ngày tạo"}
-//                 rules={[
-//                   ({ getFieldValue }) => ({
-//                     validator(_, value) {
-//                       if (value && dayjs(value).isAfter(dayjs())) {
-//                         return Promise.reject(
-//                           new Error("Vui lòng chọn lại ngày tạo!"),
-//                         );
-//                       }
-//                       return Promise.resolve();
-//                     },
-//                   }),
-//                 ]}
-//               >
-//                 <MyDatePicker
-//                   placeholder="Từ ngày"
-//                   className="h-40 w-full"
-//                   format={"DD/MM/YYYY"}
-//                 />
-//               </Form.Item>
-//             </Col>
-//           </Row>
-//           <Row>
-//             <Form.Item>
-//               <Button
-//                 onClick={() => onSearch()}
-//                 type="primary"
-//                 className="h-40"
-//               >
-//                 Tìm kiếm
-//               </Button>
-//             </Form.Item>
-//             <Form.Item className="ml-16">
-//               <Button
-//                 onClick={() => {
-//                   form.resetFields();
-//                   setIsSearching(false);
-//                 }}
-//                 icon={<ReloadOutlined />}
-//                 className="h-40"
-//                 type="default"
-//               >
-//                 Reset
-//               </Button>
-//             </Form.Item>
-//             <Form.Item className="ml-16">
-//               <Button
-//                 onClick={() => setOpenModal(true)}
-//                 icon={<ExportOutlined />}
-//                 className="h-40"
-//                 type="primary"
-//               >
-//                 Tải danh sách sản phẩm
-//               </Button>
-//             </Form.Item>
-//             <Form.Item className="ml-16">
-//               <Button
-//                 onClick={() => {}}
-//                 icon={<DownloadOutlined />}
-//                 className="h-40"
-//                 type="default"
-//               >
-//                 Tải FILE mẫu
-//               </Button>
-//             </Form.Item>
-//           </Row>
-//         </Form>
-//         <Table
-//           rowKey={"id"}
-//           bordered
-//           dataSource={isSearching ? searchData : products}
-//           columns={columns}
-//           scroll={{ y: 500, x: 150 * columns?.length }}
-//           pagination={{
-//             pageSize: 10,
-//             showSizeChanger: true,
-//             pageSizeOptions: ["10", "20", "50"],
-//             showTotal: (total) => `Tổng ${total} sản phẩm`,
-//           }}
-//         />
-//         <Modal
-//           open={openModal}
-//           title="Thêm mới sản phẩm"
-//           onCancel={() => setOpenModal(false)}
-//           width={1000}
-//           footer={null}
-//         >
-//           <Dragger
-//             {...propsUpload}
-//             fileList={file ? [file] : []}
-//             onRemove={() => setFile(null)}
-//           >
-//             <p className="ant-upload-drag-icon">
-//               <InboxOutlined />
-//             </p>
-//             <p className="ant-upload-text">
-//               Nhấn hoặc thả file vào đây để tải lên
-//             </p>
-//             <p className="ant-upload-hint">
-//               Hỗ trợ tải lên từng file, dung lượng không vượt quá 2MB và 10,000
-//               số tài khoản.
-//             </p>
-//           </Dragger>
-//           {errorFile ? (
-//             <div className="text-error-500">Vui lòng chọn một tệp.</div>
-//           ) : null}
-
-//           <Row justify="end" className="mt-16">
-//             <Button
-//               type="primary"
-//               disabled={!file || errorFile}
-//               className="h-40"
-//               onClick={onCheckFile}
-//             >
-//               Tải lên
-//             </Button>
-//             <Button
-//               onClick={() => {
-//                 setFile(null);
-//                 setErrorFile("");
-//                 setOpenModal(false);
-//               }}
-//               type="default"
-//               className="ml-16 h-40"
-//             >
-//               Huỷ
-//             </Button>
-//           </Row>
-//         </Modal>
-//       </Card>
-//     </div>
-//   );
-// };
-
-// const ManageProduct = memo(Component);
-
-// export { ManageProduct };
-
 import MyDatePicker from "@/components/basic/date-picker";
 import {
   Button,
   Card,
   Col,
   Form,
-  Image,
   Input,
   InputNumber,
   message,
@@ -536,7 +14,6 @@ import {
   Switch,
   Table,
   Tag,
-  Tooltip,
   Upload,
   UploadFile,
   UploadProps,
@@ -566,8 +43,7 @@ import {
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
-import { db, storage } from "@/App";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { db } from "../../../firebase";
 
 type ProductStatus = "AVAILABLE" | "SOLDOUT" | "INACTIVE";
 
@@ -1172,11 +648,11 @@ const Component = () => {
         .filter((item) => item.originFileObj)
         .map((item) => item.originFileObj as File);
 
-      const newUploadedUrls = await Promise.all(
-        newFiles.map((item) => uploadImageToFirebase(item, productId)),
+      const newImageBase64s = await Promise.all(
+        newFiles.map((item) => convertImageToBase64(item)),
       );
 
-      const images = [...oldUrls, ...newUploadedUrls].slice(0, MAX_IMAGES);
+      const images = [...oldUrls, ...newImageBase64s].slice(0, MAX_IMAGES);
 
       const variants: ProductVariant[] = values.enableVariants
         ? variantRows.map((item) => ({
@@ -1286,7 +762,7 @@ const Component = () => {
       resetProductModal();
       fetchProducts();
     } catch (error) {
-      console.error(error);
+      console.error(error, "error====");
       toast.error(
         productModalMode === "create"
           ? "Thêm mới sản phẩm thất bại"
@@ -1502,21 +978,44 @@ const Component = () => {
     }
   }, [excelData, file]);
 
-  const uploadImageToFirebase = async (file: File, productId: string) => {
+  const uploadImageToServer = async (file: File, productId: string) => {
     const isImage = file.type.startsWith("image/");
     if (!isImage) {
       throw new Error("File không phải ảnh");
     }
 
-    const fileExt = file.name.split(".").pop() || "png";
-    const fileName = `products/${productId}/${dayjs().valueOf()}-${Math.random()
-      .toString(36)
-      .slice(2)}.${fileExt}`;
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("productId", productId);
 
-    const storageRef = ref(storage, fileName);
+    const response = await fetch(
+      "http://localhost:5001/api/upload/product-image",
+      {
+        method: "POST",
+        body: formData,
+      },
+    );
 
-    await uploadBytes(storageRef, file);
-    return await getDownloadURL(storageRef);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data?.message || "Upload ảnh thất bại");
+    }
+
+    return String(data.url || "");
+  };
+  const convertImageToBase64 = async (file: File) => {
+    const isImage = file.type.startsWith("image/");
+    if (!isImage) {
+      throw new Error("File không phải ảnh");
+    }
+
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = (error) => reject(error);
+    });
   };
 
   const uploadImageProps: UploadProps = {
@@ -1525,9 +1024,15 @@ const Component = () => {
     fileList: imageFileList,
     beforeUpload: (file) => {
       const isImage = file.type.startsWith("image/");
+      const isLt1Mb = file.size / 1024 / 1024 < 1;
 
       if (!isImage) {
         toast.error("Chỉ chấp nhận file ảnh");
+        return Upload.LIST_IGNORE;
+      }
+
+      if (!isLt1Mb) {
+        toast.error("Ảnh phải nhỏ hơn 1MB để lưu trực tiếp");
         return Upload.LIST_IGNORE;
       }
 

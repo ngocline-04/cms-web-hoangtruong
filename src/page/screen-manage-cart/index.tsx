@@ -27,7 +27,7 @@ import {
 import dayjs from "dayjs";
 import { toast } from "react-toastify";
 import { doc, updateDoc } from "firebase/firestore";
-import { db } from "@/App";
+import { db } from "../../../firebase";
 import type {
   AppUser,
   OrderDoc,

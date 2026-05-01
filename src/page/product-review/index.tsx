@@ -19,7 +19,7 @@ import {
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
-import { auth } from "@/App";
+import { auth } from "../../../firebase";
 import { toast } from "react-toastify";
 import {
   ProductReviewDoc,

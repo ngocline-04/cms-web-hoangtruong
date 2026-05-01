@@ -18,7 +18,7 @@ import {
   Radio,
 } from "antd";
 import { hideLoading, showLoading } from "../loading";
-import { db } from "@/App";
+import { db } from "../../../firebase";
 import { toast } from "react-toastify";
 import dayjs from "dayjs";
 import MyDatePicker from "@/components/basic/date-picker";

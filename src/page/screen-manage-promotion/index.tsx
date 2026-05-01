@@ -18,7 +18,7 @@ import {
 import { PlusCircleOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { collection, doc, getDocs, updateDoc } from "firebase/firestore";
-import { db } from "@/App";
+import { db } from "../../../firebase";
 import { toast } from "react-toastify";
 import dayjs from "dayjs";
 import MyDatePicker from "@/components/basic/date-picker";

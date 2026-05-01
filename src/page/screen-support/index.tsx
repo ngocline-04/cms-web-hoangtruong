@@ -42,6 +42,29 @@ const { Text, Title } = Typography;
 const STAFF_ID = "staff_001";
 const STAFF_NAME = "Lien";
 
+const getConversationIdentityLabel = (conversation?: ConversationItem | null) => {
+  if (!conversation) return "--";
+
+  return (
+    conversation.customerUserId ||
+    conversation.customerId ||
+    conversation.customerKey ||
+    conversation.guestSessionId ||
+    "--"
+  );
+};
+
+const getConversationDisplayName = (conversation?: ConversationItem | null) => {
+  if (!conversation) return "Khách hàng";
+
+  return (
+    conversation.customerName ||
+    conversation.customerEmail ||
+    conversation.customerPhone ||
+    getConversationIdentityLabel(conversation)
+  );
+};
+
 const Component = () => {
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [selectedConversation, setSelectedConversation] =
@@ -58,10 +81,12 @@ const Component = () => {
   const [productKeyword, setProductKeyword] = useState("");
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const localSendingRef = useRef(false);
 
   const filteredProducts = useMemo(() => {
     const kw = productKeyword.trim().toLowerCase();
     if (!kw) return products;
+
     return products.filter(
       (item) =>
         item.name?.toLowerCase().includes(kw) ||
@@ -80,7 +105,13 @@ const Component = () => {
 
       if (selectedConversation) {
         const current = items.find((it) => it.id === selectedConversation.id);
-        if (current) setSelectedConversation(current);
+        if (current) {
+          setSelectedConversation(current);
+        } else if (items.length) {
+          setSelectedConversation(items[0]);
+        } else {
+          setSelectedConversation(null);
+        }
       }
     });
 
@@ -95,26 +126,34 @@ const Component = () => {
 
     setLoadingConversation(true);
 
-    const unsubscribe = subscribeMessages(selectedConversation.id, async (items) => {
-      setMessages(items);
-      setLoadingConversation(false);
+    const unsubscribe = subscribeMessages(
+      selectedConversation.id,
+      async (items) => {
+        setMessages(items);
+        setLoadingConversation(false);
 
-      try {
-        await markConversationReadForStaff(selectedConversation.id);
-      } catch {
-        // ignore
-      }
+        try {
+          await markConversationReadForStaff(selectedConversation.id);
+        } catch {
+          // ignore
+        }
 
-      setTimeout(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 50);
-    });
+        setTimeout(() => {
+          bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+        }, 50);
+      },
+    );
 
     return () => unsubscribe();
   }, [selectedConversation?.id]);
 
   const handleSendText = async () => {
-    if (!selectedConversation?.id || !text.trim()) return;
+    const trimmed = text.trim();
+
+    if (!selectedConversation?.id || !trimmed) return;
+    if (sending || localSendingRef.current) return;
+
+    localSendingRef.current = true;
 
     try {
       setSending(true);
@@ -122,7 +161,7 @@ const Component = () => {
         conversationId: selectedConversation.id,
         senderId: STAFF_ID,
         senderRole: "staff",
-        text,
+        text: trimmed,
       });
       setText("");
     } catch (error) {
@@ -130,11 +169,15 @@ const Component = () => {
       antdMessage.error("Gửi tin nhắn thất bại");
     } finally {
       setSending(false);
+      localSendingRef.current = false;
     }
   };
 
   const handleUploadImage = async (file: File) => {
     if (!selectedConversation?.id) return false;
+    if (sending || localSendingRef.current) return false;
+
+    localSendingRef.current = true;
 
     try {
       setSending(true);
@@ -149,6 +192,7 @@ const Component = () => {
       antdMessage.error("Gửi ảnh thất bại");
     } finally {
       setSending(false);
+      localSendingRef.current = false;
     }
 
     return false;
@@ -173,6 +217,9 @@ const Component = () => {
 
   const handleSendProduct = async (product: ProductItem) => {
     if (!selectedConversation?.id) return;
+    if (sending || localSendingRef.current) return;
+
+    localSendingRef.current = true;
 
     try {
       setSending(true);
@@ -188,6 +235,7 @@ const Component = () => {
       antdMessage.error("Gửi sản phẩm thất bại");
     } finally {
       setSending(false);
+      localSendingRef.current = false;
     }
   };
 
@@ -215,7 +263,7 @@ const Component = () => {
                 ? STAFF_NAME
                 : item.senderRole === "bot"
                   ? "Bot hỗ trợ"
-                  : selectedConversation?.customerName || "Khách hàng"}
+                  : getConversationDisplayName(selectedConversation)}
             </Text>
           </div>
 
@@ -246,15 +294,20 @@ const Component = () => {
               }
             >
               <div className="mb-8 text-14 font-medium">{item.product.name}</div>
-              <div className="mb-4 text-12 text-color-700">{item.product.id}</div>
-              <div className="text-13">
-                Bán lẻ: {Number(item.product.priceBtc || 0).toLocaleString("vi-VN")} ₫
+              <div className="mb-4 text-12 text-color-700">
+                {item.product.id}
               </div>
               <div className="text-13">
-                Bán buôn: {Number(item.product.priceBtb || 0).toLocaleString("vi-VN")} ₫
+                Bán lẻ:{" "}
+                {Number(item.product.priceBtc || 0).toLocaleString("vi-VN")} ₫
               </div>
               <div className="text-13">
-                CTV: {Number(item.product.priceCtv || 0).toLocaleString("vi-VN")} ₫
+                Bán buôn:{" "}
+                {Number(item.product.priceBtb || 0).toLocaleString("vi-VN")} ₫
+              </div>
+              <div className="text-13">
+                CTV:{" "}
+                {Number(item.product.priceCtv || 0).toLocaleString("vi-VN")} ₫
               </div>
             </Card>
           ) : null}
@@ -287,6 +340,7 @@ const Component = () => {
               dataSource={conversations}
               renderItem={(item) => {
                 const active = selectedConversation?.id === item.id;
+
                 return (
                   <List.Item
                     className={`!cursor-pointer !px-16 !py-12 border-b border-color-200 ${
@@ -298,19 +352,24 @@ const Component = () => {
                       <Badge count={item.unreadStaff || 0} size="small">
                         <Avatar
                           size={44}
-                          src={item.customerAvatar}
+                          src={item.customerAvatar || undefined}
                           icon={<UserOutlined />}
                         />
                       </Badge>
 
                       <div className="ml-12 min-w-0 flex-1">
-                        <div className="truncate font-medium">{item.customerName}</div>
+                        <div className="truncate font-medium">
+                          {getConversationDisplayName(item)}
+                        </div>
                         <div className="truncate text-12 text-color-700">
                           {item.lastMessageType === "image"
                             ? "[Hình ảnh]"
                             : item.lastMessageType === "product"
                               ? "[Sản phẩm]"
                               : item.lastMessage || ""}
+                        </div>
+                        <div className="truncate text-11 text-color-500">
+                          {getConversationIdentityLabel(item)}
                         </div>
                       </div>
                     </div>
@@ -335,10 +394,10 @@ const Component = () => {
             <div className="flex items-center justify-between border-b border-color-300 px-16 py-12">
               <div>
                 <div className="text-16 font-medium">
-                  {selectedConversation.customerName}
+                  {getConversationDisplayName(selectedConversation)}
                 </div>
                 <div className="text-12 text-color-700">
-                  {selectedConversation?.customerUserId}
+                  {getConversationIdentityLabel(selectedConversation)}
                 </div>
               </div>
 
@@ -348,8 +407,12 @@ const Component = () => {
                   checked={!!selectedConversation.botEnabled}
                   onChange={async (checked) => {
                     if (!selectedConversation?.id) return;
+
                     try {
-                      await disableBotForConversation(selectedConversation.id, checked);
+                      await disableBotForConversation(
+                        selectedConversation.id,
+                        checked,
+                      );
                       antdMessage.success(
                         checked ? "Đã bật bot hỗ trợ" : "Đã tắt bot hỗ trợ",
                       );
@@ -387,10 +450,11 @@ const Component = () => {
                     onChange={(e) => setText(e.target.value)}
                     autoSize={{ minRows: 2, maxRows: 5 }}
                     placeholder="Nhập tin nhắn..."
+                    disabled={sending}
                     onPressEnter={(e) => {
                       if (!e.shiftKey) {
                         e.preventDefault();
-                        handleSendText();
+                        void handleSendText();
                       }
                     }}
                   />
@@ -401,19 +465,22 @@ const Component = () => {
                     accept="image/*"
                     showUploadList={false}
                     beforeUpload={handleUploadImage}
+                    disabled={sending}
                   >
-                    <Button icon={<PictureOutlined />} />
+                    <Button icon={<PictureOutlined />} disabled={sending} />
                   </Upload>
 
                   <Button
                     icon={<ProductOutlined />}
                     onClick={openProductModal}
+                    disabled={sending}
                   />
 
                   <Button
                     type="primary"
                     icon={<SendOutlined />}
                     loading={sending}
+                    disabled={!text.trim() || sending}
                     onClick={handleSendText}
                   >
                     Gửi
@@ -465,7 +532,11 @@ const Component = () => {
                     ) : undefined
                   }
                   actions={[
-                    <Button type="link" onClick={() => handleSendProduct(item)}>
+                    <Button
+                      type="link"
+                      disabled={sending}
+                      onClick={() => handleSendProduct(item)}
+                    >
                       Gửi sản phẩm
                     </Button>,
                   ]}
@@ -474,7 +545,10 @@ const Component = () => {
                   <div className="mb-8 text-12 text-color-700">{item.id}</div>
                   <div>
                     Giá lẻ:{" "}
-                    {Number(item.variants?.[0]?.prices?.btc || 0).toLocaleString("vi-VN")} ₫
+                    {Number(item.variants?.[0]?.prices?.btc || 0).toLocaleString(
+                      "vi-VN",
+                    )}{" "}
+                    ₫
                   </div>
                 </Card>
               ))}

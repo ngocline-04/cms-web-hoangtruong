@@ -1,5 +1,5 @@
 import { collection, addDoc, getDocs } from "firebase/firestore";
-import { db } from "@/App";
+import { db } from "../../firebase";
 
 export const uploadTransactions = async (data: any[]) => {
   const colRef = collection(db, "transactions");

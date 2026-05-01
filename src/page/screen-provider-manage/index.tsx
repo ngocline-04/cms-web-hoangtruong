@@ -36,7 +36,7 @@ import {
   setDoc,
   updateDoc,
 } from "firebase/firestore";
-import { db } from "@/App";
+import { db } from "../../../firebase";
 import { STATUS_COLOR, STATUS_CUSTOMER } from "@/constant";
 
 const normalizeText = (value: any) => String(value || "").trim();

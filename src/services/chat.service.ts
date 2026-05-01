@@ -9,26 +9,33 @@ import {
   query,
   serverTimestamp,
   updateDoc,
+  where,
   type Unsubscribe,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import { db, storage } from "@/App";
+import { db, storage } from "../../firebase";
 
 export type SenderRole = "customer" | "staff" | "bot";
 export type MessageType = "text" | "image" | "product" | "system";
 
 export interface ConversationItem {
   id: string;
-  customerId: string;
-  customerName: string;
-  customerAvatar?: string;
+  customerKey?: string;
+  customerUserId?: string | null;
+  customerId?: string | null;
+  guestSessionId?: string | null;
+  customerName?: string | null;
+  customerAvatar?: string | null;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
+  assignedStaffId?: string | null;
   staffId?: string | null;
   staffName?: string | null;
   participants?: string[];
-  lastMessage?: string;
-  lastMessageType?: MessageType;
+  lastMessage?: string | null;
+  lastMessageType?: MessageType | null;
   lastMessageAt?: any;
-  lastSenderId?: string;
+  lastSenderId?: string | null;
   unreadCustomer?: number;
   unreadStaff?: number;
   botEnabled?: boolean;
@@ -37,7 +44,6 @@ export interface ConversationItem {
   createdAt?: any;
   updatedAt?: any;
   status?: string;
-  customerUserId: string;
 }
 
 export interface ProductSnapshot {
@@ -87,10 +93,12 @@ export const subscribeConversations = (
   );
 
   return onSnapshot(q, (snapshot) => {
-    const data = snapshot.docs.map((item) => ({
-      id: item.id,
-      ...item.data(),
-    })) as ConversationItem[];
+    const data = snapshot.docs
+      .map((item) => ({
+        id: item.id,
+        ...item.data(),
+      }))
+      .filter((item: any) => item.isClosed !== true) as ConversationItem[];
 
     callback(data);
   });

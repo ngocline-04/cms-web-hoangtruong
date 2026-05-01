@@ -7,8 +7,8 @@ import {
   query,
   updateDoc,
 } from "firebase/firestore";
-import { db } from "@/App";
-import type { PaymentDoc, PaymentStatus } from "./order.types";
+import { db } from "../../../firebase";
+import type { PaymentDoc, PaymentStatus } from "../screen-manage-cart/order.types";
 
 export const sortByCreatedDesc = <T extends { createdAt?: string }>(items: T[]) =>
   [...items].sort(

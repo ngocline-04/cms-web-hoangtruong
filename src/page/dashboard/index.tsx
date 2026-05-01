@@ -37,7 +37,7 @@ import {
   YAxis,
 } from "recharts";
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/App";
+import { db } from "../../../firebase";
 import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";

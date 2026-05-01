@@ -42,7 +42,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { db } from "@/App";
+import { db } from "../../../firebase";
 import { LEVEL_CUSTOMER, STATUS_COLOR, STATUS_CUSTOMER } from "@/constant";
 
 type CustomerLevel = "BTB" | "CTV";

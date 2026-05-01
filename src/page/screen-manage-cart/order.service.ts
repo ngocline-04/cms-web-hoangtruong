@@ -13,7 +13,7 @@ import {
   where,
   writeBatch,
 } from "firebase/firestore";
-import { db } from "@/App";
+import { db } from "../../../firebase";
 import type {
   AppUser,
   CreateOrderPayload,
@@ -631,35 +631,56 @@ export const ensureConversationForCustomer = async (params: {
   customerName: string;
 }) => {
   const { userId, customerName } = params;
+  const customerKey = `user_${userId}`;
 
   const q = query(
     collection(db, "conversations"),
-    where("customerId", "==", userId),
+    where("customerKey", "==", customerKey),
+    where("isClosed", "==", false),
   );
+
   const snapshot = await getDocs(q);
 
   if (!snapshot.empty) {
-    return snapshot.docs[0].id;
+    const mainDoc = snapshot.docs[0];
+
+    await updateDoc(doc(db, "conversations", mainDoc.id), {
+      customerKey,
+      customerUserId: userId,
+      customerId: userId,
+      customerName: customerName || null,
+      participants: [userId, CURRENT_ADMIN_ID],
+      updatedAt: serverTimestamp(),
+    });
+
+    return mainDoc.id;
   }
 
   const conversationRef = await addDoc(collection(db, "conversations"), {
+    customerKey,
+    customerUserId: userId,
     customerId: userId,
-    customerName,
+    guestSessionId: null,
+    customerName: customerName || null,
     customerAvatar: "",
+    customerEmail: null,
+    customerPhone: null,
+    assignedStaffId: CURRENT_ADMIN_ID,
     staffId: CURRENT_ADMIN_ID,
     staffName: "Admin",
     participants: [userId, CURRENT_ADMIN_ID],
     lastMessage: "",
     lastMessageType: "system",
-    lastMessageAt: dayjs().toISOString(),
+    lastMessageAt: serverTimestamp(),
     lastSenderId: CURRENT_ADMIN_ID,
     unreadCustomer: 0,
     unreadStaff: 0,
     botEnabled: true,
     botPending: false,
     isClosed: false,
-    createdAt: dayjs().toISOString(),
-    updatedAt: dayjs().toISOString(),
+    status: "OPEN",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
 
   return conversationRef.id;
@@ -698,12 +719,19 @@ export const sendOrderMessageToCustomer = async (params: {
     seenBy: [CURRENT_ADMIN_ID],
     metadata: {
       orderId,
+      source: "order_created",
     },
   });
 
   await updateDoc(doc(db, "conversations", conversationId), {
+    customerKey: `user_${userId}`,
+    customerUserId: userId,
+    customerId: userId,
+    customerName: customerName || null,
+    participants: [userId, CURRENT_ADMIN_ID],
     lastMessage: `Mã đơn: ${orderId}`,
     lastMessageType: "text",
+    lastMessageAt: serverTimestamp(),
     lastSenderId: CURRENT_ADMIN_ID,
     unreadCustomer: increment(1),
     updatedAt: serverTimestamp(),

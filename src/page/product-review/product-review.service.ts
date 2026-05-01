@@ -8,7 +8,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { db } from "@/App";
+import { db } from "../../../firebase";
 
 export type ProductReviewDoc = {
   id: string;
