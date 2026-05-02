@@ -238,13 +238,14 @@ export default function AdminPaymentsPage() {
     {
       title: "Thao tác",
       width: 220,
-      render: (_, record) => (
-        <Space>
+      render: (_, record) => {
+        const status = getPaymentViewStatus(record);
+        return <Space>
           <Button size="small" onClick={() => handleOpenDetail(record)}>
             Chi tiết
           </Button>
 
-          {record.status !== "PAID" ? (
+          {record.status !== "PAID" && status != 'FAILED' ? (
             <Button
               size="small"
               type="primary"
@@ -255,7 +256,7 @@ export default function AdminPaymentsPage() {
             </Button>
           ) : null}
         </Space>
-      ),
+      },
     },
   ];
 
