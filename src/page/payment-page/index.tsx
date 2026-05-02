@@ -19,9 +19,12 @@ import { toast } from "react-toastify";
 import type {
   PaymentDoc,
   PaymentStatus,
+  OrderStatus,
 } from "@/page/screen-manage-cart/order.types";
 import { formatCurrency } from "@/page/screen-manage-cart/order.service";
 import { subscribePayments, updatePaymentStatus } from "./payment.service";
+import { db } from "../../../firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 type PaymentViewStatus = PaymentStatus | "FAILED";
 
@@ -82,6 +85,22 @@ const getPaymentTypeLabel = (type?: string) => {
   return "COD";
 };
 
+const getOrderStatusTag = (status?: OrderStatus) => {
+  if (status === "PENDING_APPROVAL") {
+    return <Tag color="blue">Chờ phê duyệt</Tag>;
+  }
+  if (status === "PENDING_SHIPPING") {
+    return <Tag color="gold">Chờ vận chuyển</Tag>;
+  }
+  if (status === "SUCCESS") {
+    return <Tag color="green">Thành công</Tag>;
+  }
+  if (status === "CANCELLED") {
+    return <Tag color="red">Đã huỷ</Tag>;
+  }
+  return <Tag>Không xác định</Tag>;
+};
+
 export default function AdminPaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState<PaymentDoc[]>([]);
@@ -98,6 +117,14 @@ export default function AdminPaymentsPage() {
     null,
   );
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [orderStatusMap, setOrderStatusMap] = useState<
+    Record<string, OrderStatus | undefined>
+  >({});
+
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 10,
+  });
 
   useEffect(() => {
     const unsubscribe = subscribePayments((data) => {
@@ -107,6 +134,49 @@ export default function AdminPaymentsPage() {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const loadOrderStatuses = async () => {
+      try {
+        const orderIds = Array.from(
+          new Set(payments.map((item) => item.orderId).filter(Boolean)),
+        );
+
+        if (!orderIds.length) {
+          setOrderStatusMap({});
+          return;
+        }
+
+        const entries = await Promise.all(
+          orderIds.map(async (orderId) => {
+            try {
+              const snap = await getDoc(doc(db, "Orders", String(orderId)));
+              const status = snap.exists()
+                ? (snap.data()?.status as OrderStatus | undefined)
+                : undefined;
+              return [String(orderId), status] as const;
+            } catch (error) {
+              console.error("Load order status failed:", orderId, error);
+              return [String(orderId), undefined] as const;
+            }
+          }),
+        );
+
+        setOrderStatusMap(Object.fromEntries(entries));
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    void loadOrderStatuses();
+  }, [payments]);
+
+  useEffect(() => {
+    setPagination((prev) => ({
+      ...prev,
+      current: 1,
+    }));
+  }, [keyword, statusFilter, typeFilter]);
 
   const filteredPayments = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
@@ -170,6 +240,15 @@ export default function AdminPaymentsPage() {
     payment: PaymentDoc,
     nextStatus: PaymentStatus,
   ) => {
+    const orderStatus = orderStatusMap[String(payment.orderId)];
+
+    if (orderStatus === "PENDING_APPROVAL") {
+      toast.warning(
+        "Đơn hàng đang chờ phê duyệt, chưa được đánh dấu đã thanh toán",
+      );
+      return;
+    }
+
     try {
       setUpdatingId(payment.id);
       await updatePaymentStatus(payment.id, nextStatus);
@@ -213,9 +292,15 @@ export default function AdminPaymentsPage() {
       render: (value: string) => getPaymentTypeLabel(value),
     },
     {
-      title: "Trạng thái",
-      width: 160,
+      title: "Trạng thái thanh toán",
+      width: 180,
       render: (_, record) => getPaymentStatusTag(record),
+    },
+    {
+      title: "Trạng thái đơn",
+      width: 180,
+      render: (_, record) =>
+        getOrderStatusTag(orderStatusMap[String(record.orderId)]),
     },
     {
       title: "Tổng tiền",
@@ -239,16 +324,22 @@ export default function AdminPaymentsPage() {
     },
     {
       title: "Thao tác",
-      width: 220,
+      width: 260,
       render: (_, record) => {
-        const status = getPaymentViewStatus(record);
+        const paymentStatus = getPaymentViewStatus(record);
+        const orderStatus = orderStatusMap[String(record.orderId)];
+        const canMarkPaid =
+          record.status !== "PAID" &&
+          paymentStatus !== "FAILED" &&
+          orderStatus !== "PENDING_APPROVAL";
+
         return (
           <Space>
             <Button size="small" onClick={() => handleOpenDetail(record)}>
               Chi tiết
             </Button>
 
-            {record.status !== "PAID" && status != "FAILED" ? (
+            {canMarkPaid ? (
               <Button
                 size="small"
                 type="primary"
@@ -263,11 +354,6 @@ export default function AdminPaymentsPage() {
       },
     },
   ];
-
-  const [pagination, setPagination] = useState({
-    current: 1,
-    pageSize: 10,
-  });
 
   return (
     <div className="block-content">
@@ -354,7 +440,7 @@ export default function AdminPaymentsPage() {
           loading={loading}
           dataSource={filteredPayments}
           columns={columns}
-          scroll={{ x: 1400 }}
+          scroll={{ x: 1600 }}
           pagination={{
             current: pagination.current,
             pageSize: pagination.pageSize,
@@ -393,6 +479,12 @@ export default function AdminPaymentsPage() {
             <div>
               <span className="font-medium">Mã đơn:</span>{" "}
               {selectedPayment.orderId}
+            </div>
+            <div>
+              <span className="font-medium">Trạng thái đơn:</span>{" "}
+              {getOrderStatusTag(
+                orderStatusMap[String(selectedPayment.orderId)],
+              )}
             </div>
             <div>
               <span className="font-medium">Mã người dùng:</span>{" "}
