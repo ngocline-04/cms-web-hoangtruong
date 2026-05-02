@@ -1167,6 +1167,11 @@ const Component = () => {
     },
   ];
 
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 10,
+  });
+
   return (
     <div className="block-content">
       <Card title="Danh sách sản phẩm">
@@ -1302,10 +1307,17 @@ const Component = () => {
           columns={columns}
           scroll={{ y: 500, x: 1800 }}
           pagination={{
-            pageSize: 10,
+            current: pagination.current,
+            pageSize: pagination.pageSize,
             showSizeChanger: true,
             pageSizeOptions: ["10", "20", "50"],
             showTotal: (total) => `Tổng ${total} sản phẩm`,
+            onChange: (page, pageSize) => {
+              setPagination({
+                current: page,
+                pageSize: pageSize || 10,
+              });
+            },
           }}
         />
 

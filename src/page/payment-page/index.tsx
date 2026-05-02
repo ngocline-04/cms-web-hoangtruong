@@ -86,7 +86,9 @@ export default function AdminPaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState<PaymentDoc[]>([]);
   const [keyword, setKeyword] = useState("");
-  const [statusFilter, setStatusFilter] = useState<PaymentViewStatus | undefined>();
+  const [statusFilter, setStatusFilter] = useState<
+    PaymentViewStatus | undefined
+  >();
   const [typeFilter, setTypeFilter] = useState<
     "COD" | "BANK_TRANSFER" | undefined
   >();
@@ -240,25 +242,32 @@ export default function AdminPaymentsPage() {
       width: 220,
       render: (_, record) => {
         const status = getPaymentViewStatus(record);
-        return <Space>
-          <Button size="small" onClick={() => handleOpenDetail(record)}>
-            Chi tiết
-          </Button>
-
-          {record.status !== "PAID" && status != 'FAILED' ? (
-            <Button
-              size="small"
-              type="primary"
-              loading={updatingId === record.id}
-              onClick={() => handleUpdateStatus(record, "PAID")}
-            >
-              Đánh dấu đã thanh toán
+        return (
+          <Space>
+            <Button size="small" onClick={() => handleOpenDetail(record)}>
+              Chi tiết
             </Button>
-          ) : null}
-        </Space>
+
+            {record.status !== "PAID" && status != "FAILED" ? (
+              <Button
+                size="small"
+                type="primary"
+                loading={updatingId === record.id}
+                onClick={() => handleUpdateStatus(record, "PAID")}
+              >
+                Đánh dấu đã thanh toán
+              </Button>
+            ) : null}
+          </Space>
+        );
       },
     },
   ];
+
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 10,
+  });
 
   return (
     <div className="block-content">
@@ -347,10 +356,17 @@ export default function AdminPaymentsPage() {
           columns={columns}
           scroll={{ x: 1400 }}
           pagination={{
-            pageSize: 10,
+            current: pagination.current,
+            pageSize: pagination.pageSize,
             showSizeChanger: true,
             pageSizeOptions: ["10", "20", "50"],
-            showTotal: (total) => `Tổng ${total} thanh toán`,
+            showTotal: (total) => `Tổng ${total} đơn hàng`,
+            onChange: (page, pageSize) => {
+              setPagination({
+                current: page,
+                pageSize: pageSize || 10,
+              });
+            },
           }}
           locale={{
             emptyText: <Empty description="Chưa có dữ liệu thanh toán" />,

@@ -328,6 +328,11 @@ const Component = () => {
     [openDetailModal, openEditModal],
   );
 
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 10,
+  });
+
   return (
     <div className="block-content">
       <Card title="Danh sách khuyến mãi">
@@ -424,10 +429,17 @@ const Component = () => {
           columns={columns as any}
           scroll={{ x: 1400 }}
           pagination={{
-            pageSize: 10,
+            current: pagination.current,
+            pageSize: pagination.pageSize,
             showSizeChanger: true,
             pageSizeOptions: ["10", "20", "50"],
-            showTotal: (total) => `Tổng ${total} chương trình`,
+            showTotal: (total) => `Tổng ${total} khuyến mãi`,
+            onChange: (page, pageSize) => {
+              setPagination({
+                current: page,
+                pageSize: pageSize || 10,
+              });
+            },
           }}
         />
       </Card>

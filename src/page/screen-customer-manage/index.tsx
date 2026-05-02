@@ -104,12 +104,15 @@ const Component = () => {
 
   const [openExcelModal, setOpenExcelModal] = useState(false);
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
-  const [customerModalMode, setCustomerModalMode] = useState<"CREATE" | "EDIT" | "VIEW">("CREATE");
+  const [customerModalMode, setCustomerModalMode] = useState<
+    "CREATE" | "EDIT" | "VIEW"
+  >("CREATE");
 
   const [excelData, setExcelData] = useState<any[]>([]);
   const [users, setUsers] = useState<CustomerRecord[]>([]);
   const [staffs, setStaffs] = useState<StaffRecord[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerRecord | null>(null);
+  const [selectedCustomer, setSelectedCustomer] =
+    useState<CustomerRecord | null>(null);
 
   const [searchData, setSearchData] = useState<CustomerRecord[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -178,13 +181,17 @@ const Component = () => {
     }
 
     if (values.status) {
-      filteredData = filteredData.filter((item) => item.status === values.status);
+      filteredData = filteredData.filter(
+        (item) => item.status === values.status,
+      );
     }
 
     if (values.dateOfBirth) {
       const targetDate = dayjs(values.dateOfBirth).format("DD/MM/YYYY");
       filteredData = filteredData.filter(
-        (item) => dayjs(item.dateOfBirth, "DD/MM/YYYY").format("DD/MM/YYYY") === targetDate,
+        (item) =>
+          dayjs(item.dateOfBirth, "DD/MM/YYYY").format("DD/MM/YYYY") ===
+          targetDate,
       );
     }
 
@@ -276,7 +283,9 @@ const Component = () => {
       customerForm.resetFields();
       customerForm.setFieldsValue({
         name: record.name,
-        dateOfBirth: record.dateOfBirth ? dayjs(record?.dateOfBirth, "DD/MM/YYYY") : undefined,
+        dateOfBirth: record.dateOfBirth
+          ? dayjs(record?.dateOfBirth, "DD/MM/YYYY")
+          : undefined,
         email: record.email,
         phoneNumber: record.phoneNumber,
         address: record.address,
@@ -318,7 +327,10 @@ const Component = () => {
       const values = await customerForm.validateFields();
 
       const normalizedPhone = normalizePhone(values.phoneNumber);
-      const existedPhone = checkPhoneExists(normalizedPhone, selectedCustomer?.id);
+      const existedPhone = checkPhoneExists(
+        normalizedPhone,
+        selectedCustomer?.id,
+      );
 
       if (existedPhone) {
         toast.error("Số điện thoại đã tồn tại trong hệ thống");
@@ -326,7 +338,9 @@ const Component = () => {
       }
 
       if (values.saleOwnerId) {
-        const existedStaff = staffs.find((item) => item.id === values.saleOwnerId);
+        const existedStaff = staffs.find(
+          (item) => item.id === values.saleOwnerId,
+        );
         if (!existedStaff) {
           toast.error("Sale chăm sóc không tồn tại");
           return;
@@ -352,7 +366,9 @@ const Component = () => {
         saleOwnerId: String(values.saleOwnerId || "").trim(),
         saleOwnerName: getStaffNameById(values.saleOwnerId),
         note: String(values.note || "").trim(),
-        createdAt: isCreate ? serverTimestamp() : selectedCustomer?.createdAt || serverTimestamp(),
+        createdAt: isCreate
+          ? serverTimestamp()
+          : selectedCustomer?.createdAt || serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
 
@@ -360,7 +376,11 @@ const Component = () => {
 
       await setDoc(doc(db, "Users", customerId), payload, { merge: true });
 
-      toast.success(isCreate ? "Thêm mới khách hàng thành công" : "Cập nhật khách hàng thành công");
+      toast.success(
+        isCreate
+          ? "Thêm mới khách hàng thành công"
+          : "Cập nhật khách hàng thành công",
+      );
       resetCustomerModal();
       fetchUsers();
     } catch (error) {
@@ -446,7 +466,9 @@ const Component = () => {
           (col) =>
             !headers.some(
               (h: string) =>
-                String(h || "").trim().toLowerCase() === col.toLowerCase(),
+                String(h || "")
+                  .trim()
+                  .toLowerCase() === col.toLowerCase(),
             ),
         );
 
@@ -493,7 +515,8 @@ const Component = () => {
       });
 
       const invalidLevel = normalizedRows.find(
-        (item: any) => !item?.level || !["CTV", "BTB"].includes(String(item.level)),
+        (item: any) =>
+          !item?.level || !["CTV", "BTB"].includes(String(item.level)),
       );
 
       if (invalidLevel) {
@@ -502,7 +525,8 @@ const Component = () => {
       }
 
       const invalidPhone = normalizedRows.find(
-        (item: any) => !/^(0|\+84)\d{8,10}$/.test(String(item.phoneNumber || "")),
+        (item: any) =>
+          !/^(0|\+84)\d{8,10}$/.test(String(item.phoneNumber || "")),
       );
 
       if (invalidPhone) {
@@ -513,33 +537,44 @@ const Component = () => {
       const duplicatePhoneInFile = normalizedRows.find(
         (item: any, index: number) =>
           normalizedRows.findIndex(
-            (x: any) => normalizePhone(x.phoneNumber) === normalizePhone(item.phoneNumber),
+            (x: any) =>
+              normalizePhone(x.phoneNumber) ===
+              normalizePhone(item.phoneNumber),
           ) !== index,
       );
 
       if (duplicatePhoneInFile) {
-        toast.error(`File có số điện thoại bị trùng: ${duplicatePhoneInFile.phoneNumber}`);
+        toast.error(
+          `File có số điện thoại bị trùng: ${duplicatePhoneInFile.phoneNumber}`,
+        );
         return;
       }
 
       const duplicatePhoneInSystem = normalizedRows.find((item: any) =>
         users.some(
-          (user) => normalizePhone(user.phoneNumber) === normalizePhone(item.phoneNumber),
+          (user) =>
+            normalizePhone(user.phoneNumber) ===
+            normalizePhone(item.phoneNumber),
         ),
       );
 
       if (duplicatePhoneInSystem) {
-        toast.error(`Số điện thoại đã tồn tại: ${duplicatePhoneInSystem.phoneNumber}`);
+        toast.error(
+          `Số điện thoại đã tồn tại: ${duplicatePhoneInSystem.phoneNumber}`,
+        );
         return;
       }
 
       const invalidSaleOwner = normalizedRows.find(
         (item: any) =>
-          item.saleOwnerId && !staffs.some((staff) => staff.id === item.saleOwnerId),
+          item.saleOwnerId &&
+          !staffs.some((staff) => staff.id === item.saleOwnerId),
       );
 
       if (invalidSaleOwner) {
-        toast.error(`Sale chăm sóc không tồn tại: ${invalidSaleOwner.saleOwnerId}`);
+        toast.error(
+          `Sale chăm sóc không tồn tại: ${invalidSaleOwner.saleOwnerId}`,
+        );
         return;
       }
 
@@ -655,6 +690,10 @@ const Component = () => {
     },
   ];
 
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 10,
+  });
   return (
     <div className="block-content">
       <Card title="Danh sách khách hàng">
@@ -785,10 +824,17 @@ const Component = () => {
           columns={columns}
           scroll={{ y: 500, x: 1700 }}
           pagination={{
-            pageSize: 10,
+            current: pagination.current,
+            pageSize: pagination.pageSize,
             showSizeChanger: true,
             pageSizeOptions: ["10", "20", "50"],
             showTotal: (total) => `Tổng ${total} khách hàng`,
+            onChange: (page, pageSize) => {
+              setPagination({
+                current: page,
+                pageSize: pageSize || 10,
+              });
+            },
           }}
         />
 
@@ -825,7 +871,9 @@ const Component = () => {
           </Dragger>
 
           {errorFile ? (
-            <div className="text-error-500 mt-8">Vui lòng chọn đúng file mẫu.</div>
+            <div className="text-error-500 mt-8">
+              Vui lòng chọn đúng file mẫu.
+            </div>
           ) : null}
 
           <Row justify="end" className="mt-16">
@@ -870,23 +918,49 @@ const Component = () => {
             <>
               {selectedCustomer ? (
                 <Descriptions bordered column={2} size="small">
-                  <Descriptions.Item label="ID">{selectedCustomer.id}</Descriptions.Item>
-                  <Descriptions.Item label="Họ tên">{selectedCustomer.name || "--"}</Descriptions.Item>
-                  <Descriptions.Item label="Số điện thoại">{selectedCustomer.phoneNumber || "--"}</Descriptions.Item>
-                  <Descriptions.Item label="Email">{selectedCustomer.email || "--"}</Descriptions.Item>
-                  <Descriptions.Item label="Ngày sinh">{selectedCustomer.dateOfBirth || "--"}</Descriptions.Item>
+                  <Descriptions.Item label="ID">
+                    {selectedCustomer.id}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Họ tên">
+                    {selectedCustomer.name || "--"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Số điện thoại">
+                    {selectedCustomer.phoneNumber || "--"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Email">
+                    {selectedCustomer.email || "--"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Ngày sinh">
+                    {selectedCustomer.dateOfBirth || "--"}
+                  </Descriptions.Item>
                   <Descriptions.Item label="Loại khách">
-                    {LEVEL_CUSTOMER?.[selectedCustomer.level as keyof typeof LEVEL_CUSTOMER] || "--"}
+                    {LEVEL_CUSTOMER?.[
+                      selectedCustomer.level as keyof typeof LEVEL_CUSTOMER
+                    ] || "--"}
                   </Descriptions.Item>
                   <Descriptions.Item label="Trạng thái">
-                    <Tag color={STATUS_COLOR[selectedCustomer.status as keyof typeof STATUS_COLOR]}>
-                      {STATUS_CUSTOMER?.[selectedCustomer.status as keyof typeof STATUS_CUSTOMER]}
+                    <Tag
+                      color={
+                        STATUS_COLOR[
+                          selectedCustomer.status as keyof typeof STATUS_COLOR
+                        ]
+                      }
+                    >
+                      {
+                        STATUS_CUSTOMER?.[
+                          selectedCustomer.status as keyof typeof STATUS_CUSTOMER
+                        ]
+                      }
                     </Tag>
                   </Descriptions.Item>
                   <Descriptions.Item label="Sale chăm sóc">
-                    {selectedCustomer.saleOwnerName || getStaffNameById(selectedCustomer.saleOwnerId) || "--"}
+                    {selectedCustomer.saleOwnerName ||
+                      getStaffNameById(selectedCustomer.saleOwnerId) ||
+                      "--"}
                   </Descriptions.Item>
-                  <Descriptions.Item label="Chi nhánh">{selectedCustomer.branchCode || "--"}</Descriptions.Item>
+                  <Descriptions.Item label="Chi nhánh">
+                    {selectedCustomer.branchCode || "--"}
+                  </Descriptions.Item>
                   <Descriptions.Item label="Địa chỉ" span={2}>
                     {selectedCustomer.address || "--"}
                   </Descriptions.Item>
@@ -915,13 +989,19 @@ const Component = () => {
                       { max: 120, message: "Họ tên tối đa 120 ký tự" },
                       {
                         validator: (_, value) => {
-                          if (!value || String(value).trim()) return Promise.resolve();
-                          return Promise.reject(new Error("Họ tên không hợp lệ"));
+                          if (!value || String(value).trim())
+                            return Promise.resolve();
+                          return Promise.reject(
+                            new Error("Họ tên không hợp lệ"),
+                          );
                         },
                       },
                     ]}
                   >
-                    <Input className="h-40" placeholder="Nhập họ tên khách hàng" />
+                    <Input
+                      className="h-40"
+                      placeholder="Nhập họ tên khách hàng"
+                    />
                   </Form.Item>
                 </Col>
 
@@ -930,16 +1010,23 @@ const Component = () => {
                     name="phoneNumber"
                     label="Số điện thoại"
                     rules={[
-                      { required: true, message: "Vui lòng nhập số điện thoại" },
+                      {
+                        required: true,
+                        message: "Vui lòng nhập số điện thoại",
+                      },
                       {
                         validator: (_, value) => {
                           const normalized = normalizePhone(value);
                           if (!normalized) {
-                            return Promise.reject(new Error("Vui lòng nhập số điện thoại"));
+                            return Promise.reject(
+                              new Error("Vui lòng nhập số điện thoại"),
+                            );
                           }
 
                           if (!/^(0|\+84)\d{8,10}$/.test(normalized)) {
-                            return Promise.reject(new Error("Số điện thoại không hợp lệ"));
+                            return Promise.reject(
+                              new Error("Số điện thoại không hợp lệ"),
+                            );
                           }
 
                           return Promise.resolve();
@@ -972,7 +1059,9 @@ const Component = () => {
                       () => ({
                         validator(_, value) {
                           if (value && dayjs(value).isAfter(dayjs(), "day")) {
-                            return Promise.reject(new Error("Ngày sinh không hợp lệ"));
+                            return Promise.reject(
+                              new Error("Ngày sinh không hợp lệ"),
+                            );
                           }
                           return Promise.resolve();
                         },
@@ -991,7 +1080,12 @@ const Component = () => {
                   <Form.Item
                     name="level"
                     label="Loại khách hàng"
-                    rules={[{ required: true, message: "Vui lòng chọn loại khách hàng" }]}
+                    rules={[
+                      {
+                        required: true,
+                        message: "Vui lòng chọn loại khách hàng",
+                      },
+                    ]}
                   >
                     <Select
                       size="large"
@@ -1005,7 +1099,9 @@ const Component = () => {
                   <Form.Item
                     name="status"
                     label="Trạng thái"
-                    rules={[{ required: true, message: "Vui lòng chọn trạng thái" }]}
+                    rules={[
+                      { required: true, message: "Vui lòng chọn trạng thái" },
+                    ]}
                   >
                     <Select
                       size="large"
@@ -1019,7 +1115,9 @@ const Component = () => {
                   <Form.Item
                     name="branchCode"
                     label="Mã chi nhánh"
-                    rules={[{ max: 50, message: "Mã chi nhánh tối đa 50 ký tự" }]}
+                    rules={[
+                      { max: 50, message: "Mã chi nhánh tối đa 50 ký tự" },
+                    ]}
                   >
                     <Input className="h-40" placeholder="Nhập mã chi nhánh" />
                   </Form.Item>
@@ -1033,9 +1131,13 @@ const Component = () => {
                       {
                         validator: (_, value) => {
                           if (!value) return Promise.resolve();
-                          const existedStaff = staffs.find((item) => item.id === value);
+                          const existedStaff = staffs.find(
+                            (item) => item.id === value,
+                          );
                           if (!existedStaff) {
-                            return Promise.reject(new Error("Sale chăm sóc không tồn tại"));
+                            return Promise.reject(
+                              new Error("Sale chăm sóc không tồn tại"),
+                            );
                           }
                           return Promise.resolve();
                         },

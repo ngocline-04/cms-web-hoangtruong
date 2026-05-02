@@ -376,7 +376,9 @@ const Component = () => {
       dataIndex: "provideType",
       render: (_: any, record: any) => {
         const values = normalizeMultiValue(
-          record.provideTypes?.length ? record.provideTypes : record.provideType,
+          record.provideTypes?.length
+            ? record.provideTypes
+            : record.provideType,
         );
         return values.length ? values.join(", ") : "";
       },
@@ -480,7 +482,9 @@ const Component = () => {
           (col) =>
             !headers.some(
               (h: string) =>
-                String(h || "").trim().toLowerCase() === col.toLowerCase(),
+                String(h || "")
+                  .trim()
+                  .toLowerCase() === col.toLowerCase(),
             ),
         );
 
@@ -552,6 +556,10 @@ const Component = () => {
     }
   }, [excelData, file, fetchProvider]);
 
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 10,
+  });
   return (
     <div className="block-content">
       <Card title="Danh sách Nhà cung cấp">
@@ -665,10 +673,17 @@ const Component = () => {
           columns={columns}
           scroll={{ y: 500, x: 150 * columns.length }}
           pagination={{
-            pageSize: 10,
+            current: pagination.current,
+            pageSize: pagination.pageSize,
             showSizeChanger: true,
             pageSizeOptions: ["10", "20", "50"],
             showTotal: (total) => `Tổng ${total} Nhà cung cấp`,
+            onChange: (page, pageSize) => {
+              setPagination({
+                current: page,
+                pageSize: pageSize || 10,
+              });
+            },
           }}
         />
 
@@ -807,9 +822,7 @@ const Component = () => {
                 <Form.Item
                   label="Khu vực"
                   name="branchCode"
-                  rules={[
-                    { required: true, message: "Vui lòng chọn khu vực" },
-                  ]}
+                  rules={[{ required: true, message: "Vui lòng chọn khu vực" }]}
                 >
                   <Select
                     disabled={isViewMode}
@@ -845,9 +858,7 @@ const Component = () => {
                 <Form.Item
                   label="Địa chỉ"
                   name="address"
-                  rules={[
-                    { required: true, message: "Vui lòng nhập địa chỉ" },
-                  ]}
+                  rules={[{ required: true, message: "Vui lòng nhập địa chỉ" }]}
                 >
                   <Input
                     disabled={isViewMode}

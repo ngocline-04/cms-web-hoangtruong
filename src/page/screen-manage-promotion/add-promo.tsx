@@ -433,6 +433,12 @@ const Component = () => {
 
     return null;
   };
+
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 10,
+  });
+
   return (
     <div className="block-content">
       <Card title="Danh sách khuyến mãi">
@@ -441,7 +447,7 @@ const Component = () => {
           name="validateOnly"
           layout="vertical"
           autoComplete="off"
-           onFinish={onSubmit}
+          onFinish={onSubmit}
         >
           <Col span={12}>
             <Form.Item
@@ -1181,10 +1187,17 @@ const Component = () => {
           columns={columns}
           scroll={{ y: 500, x: 150 * columns?.length }}
           pagination={{
-            pageSize: 10,
+            current: pagination.current,
+            pageSize: pagination.pageSize,
             showSizeChanger: true,
             pageSizeOptions: ["10", "20", "50"],
-            showTotal: (total) => `Tổng ${total} sản phẩm`,
+            showTotal: (total) => `Tổng ${total} khuyến mãi`,
+            onChange: (page, pageSize) => {
+              setPagination({
+                current: page,
+                pageSize: pageSize || 10,
+              });
+            },
           }}
           rowSelection={{
             type: "checkbox",
