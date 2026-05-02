@@ -638,30 +638,36 @@ const Component = () => {
       title: "Thao tác",
       fixed: "right" as const,
       width: 260,
-      render: (_: unknown, record: OrderDoc) => (
-        <Space>
-          <Button size="small" onClick={() => openDetail(record)}>
-            Chi tiết
-          </Button>
-
-          {record.status === "PENDING_APPROVAL" ? (
-            <Button
-              size="small"
-              type="primary"
-              onClick={() => openApprove(record)}
-            >
-              Phê duyệt
+      render: (_: unknown, record: OrderDoc) => {
+        const canRetryPayment =
+          record.typePayment === "BANK_TRANSFER" &&
+          record.statusPayment !== "PAID" &&
+          record.status !== "CANCELLED";
+        return (
+          <Space>
+            <Button size="small" onClick={() => openDetail(record)}>
+              Chi tiết
             </Button>
-          ) : null}
 
-          {record.status === "PENDING_APPROVAL" ||
-          record.status === "PENDING_SHIPPING" ? (
-            <Button size="small" danger onClick={() => openCancel(record)}>
-              Huỷ
-            </Button>
-          ) : null}
-        </Space>
-      ),
+            {record.status === "PENDING_APPROVAL" && !canRetryPayment ? (
+              <Button
+                size="small"
+                type="primary"
+                onClick={() => openApprove(record)}
+              >
+                Phê duyệt
+              </Button>
+            ) : null}
+
+            {record.status === "PENDING_APPROVAL" ||
+            record.status === "PENDING_SHIPPING" ? (
+              <Button size="small" danger onClick={() => openCancel(record)}>
+                Huỷ
+              </Button>
+            ) : null}
+          </Space>
+        );
+      },
     },
   ];
 

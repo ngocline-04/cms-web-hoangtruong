@@ -4,7 +4,7 @@ export type OrderStatus =
   | "PENDING_SHIPPING"
   | "CANCELLED"
   | "SUCCESS";
-export type PaymentStatus = "PENDING" | "PAID";
+export type PaymentStatus = "PENDING" | "PAID" | "FAILED";
 export type PaymentType = "COD" | "BANK_TRANSFER";
 export type ShippingProviderId = "SPX" | "JNT";
 

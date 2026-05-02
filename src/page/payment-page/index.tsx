@@ -16,12 +16,64 @@ import {
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { toast } from "react-toastify";
-import type { PaymentDoc, PaymentStatus } from "@/page/screen-manage-cart/order.types";
+import type {
+  PaymentDoc,
+  PaymentStatus,
+} from "@/page/screen-manage-cart/order.types";
 import { formatCurrency } from "@/page/screen-manage-cart/order.service";
 import { subscribePayments, updatePaymentStatus } from "./payment.service";
 
-const getPaymentStatusTag = (status?: string) => {
-  if (status === "PAID") return <Tag color="green">Đã thanh toán</Tag>;
+type PaymentViewStatus = PaymentStatus | "FAILED";
+
+const PAYMENT_EXPIRE_MINUTES = 30;
+
+const getPaymentViewStatus = (record: any): PaymentViewStatus => {
+  if (record?.status === "PAID") {
+    return "PAID";
+  }
+
+  if (record?.typePayment !== "BANK_TRANSFER") {
+    return "UNPAID";
+  }
+
+  const hasFailedSignal =
+    !!record?.failedAt ||
+    (record?.gatewayResponseCode &&
+      String(record.gatewayResponseCode) !== "00") ||
+    (record?.gatewayTransactionStatus &&
+      String(record.gatewayTransactionStatus) !== "00");
+
+  if (hasFailedSignal) {
+    return "FAILED";
+  }
+
+  const createdMs = record?.createdAt ? dayjs(record.createdAt).valueOf() : 0;
+  const expired =
+    !!createdMs &&
+    dayjs().valueOf() >= createdMs + PAYMENT_EXPIRE_MINUTES * 60 * 1000;
+
+  if (expired) {
+    return "FAILED";
+  }
+
+  return "UNPAID";
+};
+
+const getPaymentStatusTag = (record: any) => {
+  const status = getPaymentViewStatus(record);
+
+  if (status === "PAID") {
+    return <Tag color="green">Đã thanh toán</Tag>;
+  }
+
+  if (status === "FAILED") {
+    return <Tag color="red">Thanh toán thất bại</Tag>;
+  }
+
+  if (record?.typePayment === "COD") {
+    return <Tag color="blue">Thanh toán khi nhận hàng</Tag>;
+  }
+
   return <Tag color="gold">Chờ thanh toán</Tag>;
 };
 
@@ -34,11 +86,15 @@ export default function AdminPaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState<PaymentDoc[]>([]);
   const [keyword, setKeyword] = useState("");
-  const [statusFilter, setStatusFilter] = useState<PaymentStatus | undefined>();
-  const [typeFilter, setTypeFilter] = useState<"COD" | "BANK_TRANSFER" | undefined>();
+  const [statusFilter, setStatusFilter] = useState<PaymentViewStatus | undefined>();
+  const [typeFilter, setTypeFilter] = useState<
+    "COD" | "BANK_TRANSFER" | undefined
+  >();
 
   const [detailOpen, setDetailOpen] = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState<PaymentDoc | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<PaymentDoc | null>(
+    null,
+  );
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -66,7 +122,10 @@ export default function AdminPaymentsPage() {
             .some((value) => String(value).toLowerCase().includes(kw))
         : true;
 
-      const matchedStatus = statusFilter ? item.status === statusFilter : true;
+      const matchedStatus = statusFilter
+        ? getPaymentViewStatus(item) === statusFilter
+        : true;
+
       const matchedType = typeFilter ? item.typePayment === typeFilter : true;
 
       return matchedKeyword && matchedStatus && matchedType;
@@ -79,14 +138,24 @@ export default function AdminPaymentsPage() {
       0,
     );
 
-    const paidCount = filteredPayments.filter((item) => item.status === "PAID").length;
-    const unpaidCount = filteredPayments.filter((item) => item.status !== "PAID").length;
+    const paidCount = filteredPayments.filter(
+      (item) => getPaymentViewStatus(item) === "PAID",
+    ).length;
+
+    const unpaidCount = filteredPayments.filter(
+      (item) => getPaymentViewStatus(item) === "UNPAID",
+    ).length;
+
+    const failedCount = filteredPayments.filter(
+      (item) => getPaymentViewStatus(item) === "FAILED",
+    ).length;
 
     return {
       totalCount: filteredPayments.length,
       totalAmount,
       paidCount,
       unpaidCount,
+      failedCount,
     };
   }, [filteredPayments]);
 
@@ -95,7 +164,10 @@ export default function AdminPaymentsPage() {
     setDetailOpen(true);
   };
 
-  const handleUpdateStatus = async (payment: PaymentDoc, nextStatus: PaymentStatus) => {
+  const handleUpdateStatus = async (
+    payment: PaymentDoc,
+    nextStatus: PaymentStatus,
+  ) => {
     try {
       setUpdatingId(payment.id);
       await updatePaymentStatus(payment.id, nextStatus);
@@ -126,7 +198,9 @@ export default function AdminPaymentsPage() {
       render: (_, record) => (
         <div>
           <div className="font-medium">{record.customerName || "-"}</div>
-          <div className="text-13 text-color-700">{record.customerPhone || "-"}</div>
+          <div className="text-13 text-color-700">
+            {record.customerPhone || "-"}
+          </div>
         </div>
       ),
     },
@@ -138,9 +212,8 @@ export default function AdminPaymentsPage() {
     },
     {
       title: "Trạng thái",
-      dataIndex: "status",
       width: 160,
-      render: (value: string) => getPaymentStatusTag(value),
+      render: (_, record) => getPaymentStatusTag(record),
     },
     {
       title: "Tổng tiền",
@@ -180,8 +253,7 @@ export default function AdminPaymentsPage() {
             >
               Đánh dấu đã thanh toán
             </Button>
-          ) 
-          : null}
+          ) : null}
         </Space>
       ),
     },
@@ -203,6 +275,11 @@ export default function AdminPaymentsPage() {
         <Col span={6} mobile={24}>
           <Card bordered={false}>
             <Statistic title="Chờ thanh toán" value={stats.unpaidCount} />
+          </Card>
+        </Col>
+        <Col span={6} mobile={24}>
+          <Card bordered={false}>
+            <Statistic title="Thanh toán thất bại" value={stats.failedCount} />
           </Card>
         </Col>
         <Col span={6} mobile={24}>
@@ -241,6 +318,7 @@ export default function AdminPaymentsPage() {
               options={[
                 { value: "PAID", label: "Đã thanh toán" },
                 { value: "UNPAID", label: "Chờ thanh toán" },
+                { value: "FAILED", label: "Thanh toán thất bại" },
               ]}
             />
           </Col>
@@ -292,19 +370,24 @@ export default function AdminPaymentsPage() {
         {selectedPayment ? (
           <div className="grid gap-12 text-14 text-color-800">
             <div>
-              <span className="font-medium">Mã thanh toán:</span> {selectedPayment.id}
+              <span className="font-medium">Mã thanh toán:</span>{" "}
+              {selectedPayment.id}
             </div>
             <div>
-              <span className="font-medium">Mã đơn:</span> {selectedPayment.orderId}
+              <span className="font-medium">Mã đơn:</span>{" "}
+              {selectedPayment.orderId}
             </div>
             <div>
-              <span className="font-medium">Mã người dùng:</span> {selectedPayment.idUser}
+              <span className="font-medium">Mã người dùng:</span>{" "}
+              {selectedPayment.idUser}
             </div>
             <div>
-              <span className="font-medium">Khách hàng:</span> {selectedPayment.customerName}
+              <span className="font-medium">Khách hàng:</span>{" "}
+              {selectedPayment.customerName}
             </div>
             <div>
-              <span className="font-medium">Số điện thoại:</span> {selectedPayment.customerPhone}
+              <span className="font-medium">Số điện thoại:</span>{" "}
+              {selectedPayment.customerPhone}
             </div>
             <div>
               <span className="font-medium">Phương thức:</span>{" "}
@@ -312,7 +395,7 @@ export default function AdminPaymentsPage() {
             </div>
             <div>
               <span className="font-medium">Trạng thái:</span>{" "}
-              {getPaymentStatusTag(selectedPayment.status)}
+              {getPaymentStatusTag(selectedPayment)}
             </div>
             <div>
               <span className="font-medium">Tiền hàng:</span>{" "}
@@ -327,7 +410,8 @@ export default function AdminPaymentsPage() {
               {formatCurrency(selectedPayment.amount)}
             </div>
             <div>
-              <span className="font-medium">Nguồn:</span> {selectedPayment.source}
+              <span className="font-medium">Nguồn:</span>{" "}
+              {selectedPayment.source}
             </div>
             <div>
               <span className="font-medium">Ngày tạo:</span>{" "}
@@ -342,13 +426,30 @@ export default function AdminPaymentsPage() {
                 : "-"}
             </div>
             <div>
-              <span className="font-medium">dateKey:</span> {selectedPayment.dateKey}
+              <span className="font-medium">Ngày thất bại:</span>{" "}
+              {selectedPayment.failedAt
+                ? dayjs(selectedPayment.failedAt).format("DD/MM/YYYY HH:mm")
+                : "-"}
             </div>
             <div>
-              <span className="font-medium">monthKey:</span> {selectedPayment.monthKey}
+              <span className="font-medium">gatewayResponseCode:</span>{" "}
+              {selectedPayment.gatewayResponseCode || "-"}
             </div>
             <div>
-              <span className="font-medium">timeBucket:</span> {selectedPayment.timeBucket}
+              <span className="font-medium">gatewayTransactionStatus:</span>{" "}
+              {selectedPayment.gatewayTransactionStatus || "-"}
+            </div>
+            <div>
+              <span className="font-medium">dateKey:</span>{" "}
+              {selectedPayment.dateKey}
+            </div>
+            <div>
+              <span className="font-medium">monthKey:</span>{" "}
+              {selectedPayment.monthKey}
+            </div>
+            <div>
+              <span className="font-medium">timeBucket:</span>{" "}
+              {selectedPayment.timeBucket}
             </div>
           </div>
         ) : null}
