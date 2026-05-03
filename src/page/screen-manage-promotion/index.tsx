@@ -55,12 +55,14 @@ const Component = () => {
     const totalAmount = Number(item?.totalAmount || 0);
     const totalSale = Number(item?.totalSale || 0);
 
+    console.log(totalAmount, 'check======')
     if (!totalAmount) return "LOW-EFFECTIVE";
 
-    const rate = (totalSale / totalAmount) * 100;
+    const rate = (item?.totalRevenue/totalSale) //(totalSale / totalAmount) * 100;
+    console.log(rate)
 
-    if (rate >= 70) return "HIGH-EFFECTIVE";
-    if (rate >= 30) return "NORMAL-EFFECTIVE";
+    if (rate >= 50) return "HIGH-EFFECTIVE";
+    if (rate >= 20) return "NORMAL-EFFECTIVE";
     return "LOW-EFFECTIVE";
   }, []);
 
